@@ -1,0 +1,176 @@
+<title>시험 대비 문제풀이</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+<div class="app" id="app">
+
+  <!-- 시작 화면: 과목 선택 -->
+  <section id="screen-home" class="screen">
+    <header class="home-head">
+      <p class="eyebrow">2026 2학기 중간고사</p>
+      <h1>시험 대비 문제풀이</h1>
+      <p class="lede">과목을 고르면 빈칸 채우기와 단답형 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
+    </header>
+    <div class="subject-grid" id="subject-grid"></div>
+  </section>
+
+  <!-- 과목 화면: 출제 설정 -->
+  <section id="screen-setup" class="screen" hidden>
+    <button type="button" class="back" data-go="home">← 과목 선택</button>
+    <h2 class="subject-title" id="setup-title"></h2>
+    <p class="meta" id="setup-meta"></p>
+
+    <form id="setup-form" class="setup">
+      <fieldset class="field">
+        <legend>문제 형식</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="mode" id="mode-mix" value="mix" checked><span>섞어서</span></label>
+          <label><input type="radio" name="mode" id="mode-blank" value="blank"><span>빈칸 채우기</span></label>
+          <label><input type="radio" name="mode" id="mode-short" value="short"><span>단답형</span></label>
+        </div>
+      </fieldset>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="setup-chapter">범위</label>
+          <select id="setup-chapter"></select>
+        </div>
+        <div class="field">
+          <label for="setup-count">문항 수</label>
+          <select id="setup-count">
+            <option value="10">10문제</option>
+            <option value="20" selected>20문제</option>
+            <option value="all">전부</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="avail" id="setup-avail" aria-live="polite"></p>
+
+      <div class="actions">
+        <button type="submit" class="btn primary" id="btn-start">풀기 시작</button>
+        <button type="button" class="btn" id="btn-review">틀린 문제만 풀기</button>
+      </div>
+    </form>
+
+    <button type="button" class="link-btn" id="btn-manage">문제 직접 추가하기 →</button>
+  </section>
+
+  <!-- 문제 풀이 화면 -->
+  <section id="screen-quiz" class="screen" hidden>
+    <div class="quiz-top">
+      <button type="button" class="back" id="btn-quit">← 그만 풀기</button>
+      <span class="progress-text" id="quiz-progress"></span>
+    </div>
+    <div class="bar" aria-hidden="true"><div class="bar-fill" id="quiz-bar"></div></div>
+
+    <article class="card" id="quiz-card">
+      <div class="card-tags">
+        <span class="tag" id="quiz-type"></span>
+        <span class="tag muted" id="quiz-chapter"></span>
+      </div>
+      <p class="question" id="quiz-question"></p>
+
+      <form id="answer-form" class="answer" autocomplete="off">
+        <label for="answer-input" class="sr-only">답 입력</label>
+        <input type="text" id="answer-input" placeholder="답을 입력하세요" enterkeyhint="done">
+        <div class="answer-actions">
+          <button type="submit" class="btn primary" id="btn-check">확인</button>
+          <button type="button" class="btn ghost" id="btn-skip">모르겠어요</button>
+        </div>
+      </form>
+
+      <!-- 확인을 누르기 전까지 정답은 DOM에 들어가지 않는다 -->
+      <div class="feedback" id="feedback" hidden>
+        <p class="verdict" id="verdict"></p>
+        <dl class="reveal">
+          <div><dt>정답</dt><dd id="reveal-answer"></dd></div>
+          <div id="reveal-mine-row"><dt>내 답</dt><dd id="reveal-mine"></dd></div>
+        </dl>
+        <div class="answer-actions">
+          <button type="button" class="btn primary" id="btn-next">다음 문제</button>
+          <button type="button" class="btn ghost" id="btn-override" hidden>맞은 걸로 할게요</button>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section id="screen-result" class="screen" hidden>
+    <p class="eyebrow" id="result-subject"></p>
+    <h2 class="score"><span id="result-score"></span><small id="result-total"></small></h2>
+    <p class="meta" id="result-note"></p>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-retry-wrong">이번에 틀린 문제 다시 풀기</button>
+      <button type="button" class="btn" data-go="setup">설정으로 돌아가기</button>
+    </div>
+    <h3 class="section-label" id="result-list-label">틀린 문제</h3>
+    <ol class="miss-list" id="result-list"></ol>
+  </section>
+
+  <!-- 문제 추가/관리 화면 -->
+  <section id="screen-manage" class="screen" hidden>
+    <button type="button" class="back" data-go="setup">← 돌아가기</button>
+    <h2 class="subject-title" id="manage-title"></h2>
+
+    <form id="add-form" class="setup">
+      <fieldset class="field">
+        <legend>형식</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="add-type" id="add-type-blank" value="blank" checked><span>빈칸 채우기</span></label>
+          <label><input type="radio" name="add-type" id="add-type-short" value="short"><span>단답형</span></label>
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="add-chapter">단원</label>
+        <input type="text" id="add-chapter" list="add-chapter-list" placeholder="예: Ⅶ. 금융상품의 이해">
+        <datalist id="add-chapter-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="add-question" id="add-question-label">문장</label>
+        <textarea id="add-question" rows="3"></textarea>
+        <p class="hint" id="add-question-hint">빈칸 자리에 밑줄 세 개(___)를 넣으세요.</p>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="add-answer">정답</label>
+          <input type="text" id="add-answer">
+        </div>
+        <div class="field">
+          <label for="add-alias">다른 정답 (선택)</label>
+          <input type="text" id="add-alias" placeholder="쉼표로 구분">
+        </div>
+      </div>
+      <p class="form-msg" id="add-msg" role="status"></p>
+      <div class="actions">
+        <button type="submit" class="btn primary">문제 추가</button>
+      </div>
+    </form>
+
+    <h3 class="section-label" id="custom-label">내가 추가한 문제</h3>
+    <ol class="custom-list" id="custom-list"></ol>
+
+    <h3 class="section-label">다른 기기로 옮기기</h3>
+    <div class="setup">
+      <p class="meta">기록은 이 브라우저에만 저장됩니다. 이 기기에서 백업 코드를 복사해 다른 기기의 같은 칸에 붙여넣고 복원을 누르세요. 두 과목의 추가 문제와 복습 목록이 모두 들어 있고, 복원하면 기존 기록에 합쳐집니다.</p>
+      <div class="field">
+        <label for="backup-text">백업 코드</label>
+        <textarea id="backup-text" rows="4" spellcheck="false"></textarea>
+      </div>
+      <p class="form-msg" id="backup-msg" role="status"></p>
+      <div class="actions">
+        <button type="button" class="btn" id="btn-backup-copy">백업 코드 복사</button>
+        <button type="button" class="btn" id="btn-restore">붙여넣은 코드로 복원</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="grade.js"></script>
+<script src="data/finance.js"></script>
+<script src="data/insurance.js"></script>
+<script src="app.js"></script>
