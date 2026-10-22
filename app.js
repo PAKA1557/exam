@@ -7,7 +7,7 @@
   const { grade } = window.QuizGrade;
   const SUBJECTS = ['finance', 'insurance'];
   const STORE_KEY = 'exam-quiz.v1';
-  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형' };
+  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X' };
 
   const $ = (id) => document.getElementById(id);
 
@@ -129,9 +129,9 @@
     $('setup-title').textContent = BANK[subj].title;
 
     const qs = allQuestions(subj);
-    const nBlank = qs.filter((q) => q.type === 'blank').length;
+    const n = (t) => qs.filter((q) => q.type === t).length;
     $('setup-meta').textContent =
-      `전체 ${qs.length}문제 · 빈칸 ${nBlank} · 단답 ${qs.length - nBlank}` +
+      `전체 ${qs.length}문제 · 빈칸 ${n('blank')} · 단답 ${n('short')} · O/X ${n('ox')}` +
       (store.custom[subj].length ? ` · 직접 추가 ${store.custom[subj].length}` : '');
 
     const sel = $('setup-chapter');
@@ -200,17 +200,21 @@
     $('quiz-chapter').textContent = q.ch;
     renderQuestionText($('quiz-question'), q);
 
+    // O/X 는 버튼으로, 나머지는 입력칸으로 답한다.
+    const isOx = q.type === 'ox';
+    $('ox-buttons').hidden = !isOx;
+    $('answer-form').hidden = isOx;
     const input = $('answer-input');
     input.value = '';
-    input.disabled = false;
+    input.disabled = isOx;
     input.placeholder = q.type === 'blank' ? '빈칸에 들어갈 말' : '답을 입력하세요';
-    $('answer-form').hidden = false;
 
     // 이전 문제의 정답이 남아 있지 않도록 비운다.
     $('feedback').hidden = true;
     $('reveal-answer').replaceChildren();
     $('reveal-mine').textContent = '';
-    input.focus();
+    $('reveal-why').textContent = '';
+    if (!isOx) input.focus();
   }
 
   function submitAnswer(input) {
@@ -225,6 +229,7 @@
   function showFeedback(q, input, correct) {
     $('answer-input').disabled = true;
     $('answer-form').hidden = true;
+    $('ox-buttons').hidden = true;
 
     const fb = $('feedback');
     fb.className = 'feedback ' + (correct ? 'ok' : 'bad');
@@ -240,8 +245,10 @@
     }
     $('reveal-mine-row').hidden = !input.trim();
     $('reveal-mine').textContent = input;
-    // 표기만 다른 답을 직접 정답 처리할 수 있게 한다.
-    $('btn-override').hidden = correct || !input.trim();
+    $('reveal-why-row').hidden = !q.why;
+    $('reveal-why').textContent = q.why || '';
+    // 표기만 다른 답을 직접 정답 처리할 수 있게 한다. O/X 는 표기 차이가 없으므로 제외.
+    $('btn-override').hidden = correct || !input.trim() || q.type === 'ox';
 
     fb.hidden = false;
     $('btn-next').textContent = state.session.index + 1 < state.session.queue.length ? '다음 문제' : '결과 보기';
@@ -255,6 +262,19 @@
     submitAnswer(v);
   });
   $('btn-skip').addEventListener('click', () => submitAnswer(''));
+  for (const b of document.querySelectorAll('.ox-btn')) {
+    b.addEventListener('click', () => submitAnswer(b.dataset.ox));
+  }
+  // O/X 문제를 풀 때만 O·X 키를 받는다. 입력칸이나 다른 화면에서는 반응하지 않는다.
+  document.addEventListener('keydown', (e) => {
+    if ($('screen-quiz').hidden || $('ox-buttons').hidden) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    const k = e.key.toLowerCase();
+    if (k === 'o' || k === 'x') {
+      e.preventDefault();
+      submitAnswer(k.toUpperCase());
+    }
+  });
   $('btn-override').addEventListener('click', () => {
     const s = state.session;
     const last = s.results[s.results.length - 1];
@@ -314,12 +334,16 @@
   }
 
   function syncAddForm() {
-    const blank = addType() === 'blank';
-    $('add-question-label').textContent = blank ? '문장' : '질문';
-    $('add-question-hint').hidden = !blank;
-    $('add-question').placeholder = blank
-      ? '예: 이자·배당소득의 원천징수세율은 ___%다.'
-      : '예: 변동금리 대출의 대표 기준금리는?';
+    const type = addType();
+    $('add-question-label').textContent = type === 'short' ? '질문' : type === 'ox' ? '진술' : '문장';
+    $('add-question-hint').hidden = type !== 'blank';
+    $('add-text-answer').hidden = type === 'ox';
+    $('add-ox-answer').hidden = type !== 'ox';
+    $('add-question').placeholder = {
+      blank: '예: 이자·배당소득의 원천징수세율은 ___%다.',
+      short: '예: 변동금리 대출의 대표 기준금리는?',
+      ox: '예: DTI와 DSR은 높을수록 대출가능액이 커진다.',
+    }[type];
   }
 
   function renderManage() {
@@ -384,23 +408,26 @@
     const type = addType();
     const ch = $('add-chapter').value.trim() || '직접 추가';
     const qText = $('add-question').value.trim();
-    const answer = $('add-answer').value.trim();
-    const aliases = $('add-alias').value.split(',').map((s) => s.trim()).filter(Boolean);
+    const why = $('add-why').value.trim();
+    const answer = type === 'ox'
+      ? document.querySelector('input[name="add-ox"]:checked').value
+      : $('add-answer').value.trim();
+    const aliases = type === 'ox' ? [] : $('add-alias').value.split(',').map((s) => s.trim()).filter(Boolean);
 
-    if (!qText) return setAddMsg(type === 'blank' ? '문장을 입력하세요.' : '질문을 입력하세요.', 'error');
+    if (!qText) return setAddMsg(`${$('add-question-label').textContent}을 입력하세요.`, 'error');
     if (type === 'blank' && !/_{3,}/.test(qText)) return setAddMsg('빈칸 자리에 밑줄 세 개(___)를 넣어 주세요.', 'error');
     if (!answer) return setAddMsg('정답을 입력하세요.', 'error');
 
     const subj = state.subject;
-    store.custom[subj].push({
-      id: `${subj}-custom-${Date.now().toString(36)}`,
-      ch, type, q: qText, a: [answer, ...aliases],
-    });
+    const q = { id: `${subj}-custom-${Date.now().toString(36)}`, ch, type, q: qText, a: [answer, ...aliases] };
+    if (why) q.why = why;
+    store.custom[subj].push(q);
     saveStore();
 
     $('add-question').value = '';
     $('add-answer').value = '';
     $('add-alias').value = '';
+    $('add-why').value = '';
     setAddMsg('추가했어요. 다음 풀이부터 함께 출제됩니다.', 'ok');
     renderManage();
     $('add-question').focus();
@@ -444,7 +471,9 @@
       const have = new Set(store.custom[subj].map((q) => q.id));
       for (const q of data.custom?.[subj] || []) {
         if (!q || have.has(q.id) || !q.q || !Array.isArray(q.a) || !TYPE_LABEL[q.type]) continue;
-        store.custom[subj].push({ id: q.id, ch: q.ch || '직접 추가', type: q.type, q: q.q, a: q.a.map(String) });
+        const item = { id: q.id, ch: q.ch || '직접 추가', type: q.type, q: q.q, a: q.a.map(String) };
+        if (typeof q.why === 'string' && q.why) item.why = q.why;
+        store.custom[subj].push(item);
         added++;
       }
       for (const id of data.wrong?.[subj] || []) {

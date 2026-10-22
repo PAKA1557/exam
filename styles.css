@@ -41,6 +41,9 @@
 .app[data-subject="finance"] { --accent: var(--fin); --accent-soft: var(--fin-soft); }
 .app[data-subject="insurance"] { --accent: var(--ins); --accent-soft: var(--ins-soft); }
 
+/* 아티팩트 뼈대에도 있지만, 파일을 직접 열 때를 위해 여기서도 보장한다. */
+[hidden] { display: none !important; }
+
 html, body { min-height: 100%; }
 body {
   background: var(--bg);
@@ -152,6 +155,24 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 }
 .answer { display: flex; flex-direction: column; gap: 12px; }
 .answer input { font-size: 1.0625rem; background: var(--bg); }
+
+/* O/X 버튼: 시험지의 동그라미와 가위표 */
+.ox-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ox-btn {
+  display: flex; align-items: center; justify-content: center; min-height: 112px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--fg);
+  transition: border-color .15s, background .15s;
+}
+.ox-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.ox-o { width: 52px; height: 52px; border: 6px solid var(--accent); border-radius: 50%; box-sizing: border-box; }
+.ox-x { position: relative; width: 56px; height: 56px; }
+.ox-x::before, .ox-x::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 64px; height: 6px; border-radius: 3px;
+  background: var(--bad); transform: translate(-50%, -50%) rotate(45deg);
+}
+.ox-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.ox-hint { grid-column: 1 / -1; }
+@media (hover: none) { .ox-hint { display: none; } }
 
 .feedback { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 10px; }
 .feedback.ok { background: var(--ok-soft); }

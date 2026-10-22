@@ -21,10 +21,11 @@ for (const [subj, { title, questions }] of Object.entries(BANK)) {
     check(`${q.id} 형식`, () => {
       assert.ok(!ids.has(q.id), '중복 id');
       ids.add(q.id);
-      assert.ok(['blank', 'short'].includes(q.type), 'type 은 blank/short');
+      assert.ok(['blank', 'short', 'ox'].includes(q.type), 'type 은 blank/short/ox');
       assert.ok(q.ch && q.q, '단원과 문제 필요');
       assert.ok(Array.isArray(q.a) && q.a.length, '정답 필요');
       if (q.type === 'blank') assert.ok(/_{3,}/.test(q.q), '빈칸(___) 없음');
+      if (q.type === 'ox') assert.ok(q.a.length === 1 && ['O', 'X'].includes(q.a[0]), "O/X 정답은 ['O'] 또는 ['X']");
     });
     check(`${q.id} 대표 정답으로 채점`, () => assert.ok(grade(q, q.a[0])));
     check(`${q.id} 빈 답은 오답`, () => assert.ok(!grade(q, '')));
@@ -36,9 +37,13 @@ const multi = { a: ['예금성, 대출성, 투자성, 보장성'], all: ['예금
 check('띄어쓰기·부호 무시', () => assert.strictEqual(normalize(' 대출금리 − 예금금리. '), '대출금리-예금금리'));
 check('여러 항목은 순서 무관', () => assert.ok(grade(multi, '보장성 투자성 예금성 대출성')));
 check('여러 항목 일부만 쓰면 오답', () => assert.ok(!grade(multi, '예금성, 대출성')));
+check('O/X 는 반대 답이면 오답', () => assert.ok(!grade({ type: 'ox', a: ['O'] }, 'X')));
 check('대소문자 무시', () => assert.ok(grade({ a: ['COFIX'] }, 'cofix')));
 
-const counts = Object.entries(BANK).map(([s, b]) => `${s} ${b.questions.length}`).join(', ');
+const counts = Object.entries(BANK).map(([s, b]) => {
+  const ox = b.questions.filter((q) => q.type === 'ox').length;
+  return `${s} ${b.questions.length} (O/X ${ox})`;
+}).join(', ');
 if (failures) {
   console.error(`\n실패 ${failures}건`);
   process.exit(1);

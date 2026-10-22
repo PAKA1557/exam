@@ -30,6 +30,7 @@
           <label><input type="radio" name="mode" id="mode-mix" value="mix" checked><span>섞어서</span></label>
           <label><input type="radio" name="mode" id="mode-blank" value="blank"><span>빈칸 채우기</span></label>
           <label><input type="radio" name="mode" id="mode-short" value="short"><span>단답형</span></label>
+          <label><input type="radio" name="mode" id="mode-ox" value="ox"><span>O/X</span></label>
         </div>
       </fieldset>
 
@@ -74,6 +75,12 @@
       </div>
       <p class="question" id="quiz-question"></p>
 
+      <div class="ox-buttons" id="ox-buttons" hidden>
+        <button type="button" class="ox-btn" data-ox="O" aria-label="O, 맞다"><span class="ox-o" aria-hidden="true"></span></button>
+        <button type="button" class="ox-btn" data-ox="X" aria-label="X, 틀리다"><span class="ox-x" aria-hidden="true"></span></button>
+        <p class="hint ox-hint">키보드 O 또는 X 키로도 답할 수 있어요.</p>
+      </div>
+
       <form id="answer-form" class="answer" autocomplete="off">
         <label for="answer-input" class="sr-only">답 입력</label>
         <input type="text" id="answer-input" placeholder="답을 입력하세요" enterkeyhint="done">
@@ -89,6 +96,7 @@
         <dl class="reveal">
           <div><dt>정답</dt><dd id="reveal-answer"></dd></div>
           <div id="reveal-mine-row"><dt>내 답</dt><dd id="reveal-mine"></dd></div>
+          <div id="reveal-why-row"><dt>해설</dt><dd id="reveal-why"></dd></div>
         </dl>
         <div class="answer-actions">
           <button type="button" class="btn primary" id="btn-next">다음 문제</button>
@@ -122,6 +130,7 @@
         <div class="seg" role="radiogroup">
           <label><input type="radio" name="add-type" id="add-type-blank" value="blank" checked><span>빈칸 채우기</span></label>
           <label><input type="radio" name="add-type" id="add-type-short" value="short"><span>단답형</span></label>
+          <label><input type="radio" name="add-type" id="add-type-ox" value="ox"><span>O/X</span></label>
         </div>
       </fieldset>
       <div class="field">
@@ -134,7 +143,7 @@
         <textarea id="add-question" rows="3"></textarea>
         <p class="hint" id="add-question-hint">빈칸 자리에 밑줄 세 개(___)를 넣으세요.</p>
       </div>
-      <div class="field-row">
+      <div class="field-row" id="add-text-answer">
         <div class="field">
           <label for="add-answer">정답</label>
           <input type="text" id="add-answer">
@@ -143,6 +152,17 @@
           <label for="add-alias">다른 정답 (선택)</label>
           <input type="text" id="add-alias" placeholder="쉼표로 구분">
         </div>
+      </div>
+      <fieldset class="field" id="add-ox-answer" hidden>
+        <legend>정답</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="add-ox" id="add-ox-o" value="O" checked><span>O (맞는 진술)</span></label>
+          <label><input type="radio" name="add-ox" id="add-ox-x" value="X"><span>X (틀린 진술)</span></label>
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="add-why">해설 (선택)</label>
+        <input type="text" id="add-why" placeholder="정답을 확인한 뒤 보여줄 설명">
       </div>
       <p class="form-msg" id="add-msg" role="status"></p>
       <div class="actions">
