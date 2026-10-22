@@ -4,17 +4,20 @@
   'use strict';
 
   const BANK = window.QUIZ_BANK;
-  const { grade } = window.QuizGrade;
-  const SUBJECTS = ['finance', 'insurance'];
+  const { grade, checkRule } = window.QuizGrade;
+  const SUBJECTS = ['finance', 'insurance', 'writing'];
   const STORE_KEY = 'exam-quiz.v1';
-  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X' };
+  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X', essay: '서술형' };
+  const TYPE_SHORT = { blank: '빈칸', short: '단답', ox: 'O/X', essay: '서술' };
 
   const $ = (id) => document.getElementById(id);
 
   // ---------- 저장소 ----------
   // 저장이 막힌 환경(사생활 보호 모드 등)에서도 메모리 상태로 계속 동작한다.
   function emptyStore() {
-    return { custom: { finance: [], insurance: [] }, wrong: { finance: [], insurance: [] } };
+    const s = { custom: {}, wrong: {} };
+    for (const subj of SUBJECTS) { s.custom[subj] = []; s.wrong[subj] = []; }
+    return s;
   }
   function loadStore() {
     try {
@@ -130,9 +133,17 @@
 
     const qs = allQuestions(subj);
     const n = (t) => qs.filter((q) => q.type === t).length;
+    const parts = Object.keys(TYPE_SHORT).filter((t) => n(t)).map((t) => `${TYPE_SHORT[t]} ${n(t)}`);
     $('setup-meta').textContent =
-      `전체 ${qs.length}문제 · 빈칸 ${n('blank')} · 단답 ${n('short')} · O/X ${n('ox')}` +
+      `전체 ${qs.length}문제 · ${parts.join(' · ')}` +
       (store.custom[subj].length ? ` · 직접 추가 ${store.custom[subj].length}` : '');
+
+    // 이 과목에 없는 형식은 고를 수 없게 숨긴다.
+    for (const label of document.querySelectorAll('#setup-form .seg label[data-type]')) {
+      const empty = n(label.dataset.type) === 0;
+      label.hidden = empty;
+      if (empty && label.querySelector('input').checked) $('mode-mix').checked = true;
+    }
 
     const sel = $('setup-chapter');
     const prev = sel.value;
@@ -199,22 +210,35 @@
     $('quiz-type').textContent = TYPE_LABEL[q.type];
     $('quiz-chapter').textContent = q.ch;
     renderQuestionText($('quiz-question'), q);
+    $('quiz-given').hidden = !q.given;
+    $('quiz-given').textContent = q.given || '';
 
-    // O/X 는 버튼으로, 나머지는 입력칸으로 답한다.
+    // O/X 는 버튼, 서술형은 여러 줄 칸, 나머지는 한 줄 입력칸으로 답한다.
     const isOx = q.type === 'ox';
+    const isEssay = q.type === 'essay';
     $('ox-buttons').hidden = !isOx;
-    $('answer-form').hidden = isOx;
+    $('answer-form').hidden = isOx || isEssay;
+    $('essay-form').hidden = !isEssay;
     const input = $('answer-input');
     input.value = '';
-    input.disabled = isOx;
+    input.disabled = isOx || isEssay;
     input.placeholder = q.type === 'blank' ? '빈칸에 들어갈 말' : '답을 입력하세요';
+    const essay = $('essay-input');
+    essay.value = '';
+    essay.disabled = !isEssay;
+    // 개요 문제는 칸을 크게 연다.
+    essay.rows = /개요/.test(q.q) && !/요건/.test(q.q) ? 12 : 5;
 
     // 이전 문제의 정답이 남아 있지 않도록 비운다.
     $('feedback').hidden = true;
     $('reveal-answer').replaceChildren();
     $('reveal-mine').textContent = '';
     $('reveal-why').textContent = '';
-    if (!isOx) input.focus();
+    $('essay-mine').textContent = '';
+    $('essay-model').textContent = '';
+    $('rubric-list').replaceChildren();
+    if (isEssay) essay.focus();
+    else if (!isOx) input.focus();
   }
 
   function submitAnswer(input) {
@@ -230,6 +254,10 @@
     $('answer-input').disabled = true;
     $('answer-form').hidden = true;
     $('ox-buttons').hidden = true;
+    $('essay-review').hidden = true;
+    $('reveal-answer-row').hidden = false;
+    $('btn-confirm').hidden = true;
+    $('btn-next').hidden = false;
 
     const fb = $('feedback');
     fb.className = 'feedback ' + (correct ? 'ok' : 'bad');
@@ -254,6 +282,100 @@
     $('btn-next').textContent = state.session.index + 1 < state.session.queue.length ? '다음 문제' : '결과 보기';
     $('btn-next').focus();
   }
+
+  // ---------- 서술형 ----------
+  // 제출하면 모범 답안과 채점 기준을 보여 주고, 사용자가 기준별로 체크해 확정한다.
+  function showEssayReview(q, input) {
+    $('essay-input').disabled = true;
+    $('essay-form').hidden = true;
+
+    const fb = $('feedback');
+    fb.className = 'feedback review';
+    $('verdict').textContent = input.trim() ? '모범 답안과 비교해 채점하세요' : '모범 답안을 확인하세요';
+
+    $('essay-mine-block').hidden = !input.trim();
+    $('essay-mine').textContent = input;
+    $('essay-model').textContent = q.model;
+
+    const list = $('rubric-list');
+    list.replaceChildren();
+    q.rubric.forEach((r, i) => {
+      const li = document.createElement('li');
+      const id = `rubric-${i}`;
+      li.innerHTML = '<input type="checkbox"><label></label>';
+      const box = li.querySelector('input');
+      const label = li.querySelector('label');
+      box.id = id;
+      label.htmlFor = id;
+      label.textContent = r.label;
+      if (r.auto && input.trim()) {
+        const pass = checkRule(r.auto, input);
+        box.checked = pass;
+        const tag = document.createElement('span');
+        tag.className = 'auto ' + (pass ? 'pass' : 'fail');
+        tag.textContent = pass ? '자동 ✓' : '자동 ✗';
+        label.appendChild(tag);
+      }
+      // 답을 안 썼으면 체크할 것이 없다.
+      box.disabled = !input.trim();
+      li.addEventListener('change', updateRubricScore);
+      list.appendChild(li);
+    });
+    updateRubricScore();
+
+    $('reveal-answer-row').hidden = true;
+    $('reveal-mine-row').hidden = true;
+    $('reveal-why-row').hidden = !q.why;
+    $('reveal-why').textContent = q.why || '';
+    $('btn-override').hidden = true;
+    $('essay-review').hidden = false;
+    $('btn-confirm').hidden = false;
+    $('btn-confirm').textContent = input.trim() ? '채점 확정' : '틀린 문제로 두고 넘어가기';
+    $('btn-next').hidden = true;
+    fb.hidden = false;
+    $('essay-review').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function rubricBoxes() {
+    return [...$('rubric-list').querySelectorAll('input[type="checkbox"]')];
+  }
+  function updateRubricScore() {
+    const boxes = rubricBoxes();
+    const got = boxes.filter((b) => b.checked).length;
+    $('rubric-score').textContent = `기준 ${boxes.length}개 중 ${got}개 충족 · 모두 충족해야 맞은 것으로 칩니다.`;
+  }
+
+  $('essay-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('essay-input').value;
+    if (!v.trim()) { $('essay-input').focus(); return; }
+    const s = state.session;
+    showEssayReview(s.queue[s.index], v);
+  });
+  $('btn-essay-skip').addEventListener('click', () => {
+    const s = state.session;
+    showEssayReview(s.queue[s.index], '');
+  });
+  $('btn-confirm').addEventListener('click', () => {
+    const s = state.session;
+    const q = s.queue[s.index];
+    const input = $('essay-mine').textContent;
+    const boxes = rubricBoxes();
+    const got = boxes.filter((b) => b.checked).length;
+    const correct = input.trim() !== '' && got === boxes.length;
+    s.results.push({ q, input, correct });
+    markWrong(state.subject, q.id, !correct);
+
+    for (const b of boxes) b.disabled = true;
+    $('feedback').className = 'feedback ' + (correct ? 'ok' : 'bad');
+    $('verdict').textContent = correct
+      ? `기준을 모두 충족했어요 (${got}/${boxes.length})`
+      : input.trim() ? `보완이 필요해요 (${got}/${boxes.length}) · 복습 목록에 넣었어요` : '복습 목록에 넣었어요';
+    $('btn-confirm').hidden = true;
+    $('btn-next').hidden = false;
+    $('btn-next').textContent = s.index + 1 < s.queue.length ? '다음 문제' : '결과 보기';
+    $('btn-next').focus();
+  });
 
   $('answer-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -317,8 +439,14 @@
       const li = document.createElement('li');
       li.innerHTML = '<span class="q"></span><span class="a"></span><span class="mine"></span>';
       li.querySelector('.q').textContent = r.q.q.replace(/_{3,}/g, '(   )');
-      li.querySelector('.a').textContent = '정답: ' + r.q.a[0];
-      li.querySelector('.mine').textContent = r.input.trim() ? '내 답: ' + r.input : '모르겠어요';
+      if (r.q.type === 'essay') {
+        li.querySelector('.a').textContent = '모범 답안: ' + r.q.model.split('\n')[0] + (r.q.model.includes('\n') ? ' …' : '');
+        const mine = r.input.trim();
+        li.querySelector('.mine').textContent = mine ? '내 답안: ' + (mine.length > 80 ? mine.slice(0, 80) + '…' : mine) : '답안 없음';
+      } else {
+        li.querySelector('.a').textContent = '정답: ' + r.q.a[0];
+        li.querySelector('.mine').textContent = r.input.trim() ? '내 답: ' + r.input : '모르겠어요';
+      }
       list.appendChild(li);
     }
     s.missed = missed.map((r) => r.q);
@@ -335,14 +463,16 @@
 
   function syncAddForm() {
     const type = addType();
-    $('add-question-label').textContent = type === 'short' ? '질문' : type === 'ox' ? '진술' : '문장';
+    $('add-question-label').textContent = { blank: '문장', short: '질문', ox: '진술', essay: '문제' }[type];
     $('add-question-hint').hidden = type !== 'blank';
-    $('add-text-answer').hidden = type === 'ox';
+    $('add-text-answer').hidden = type === 'ox' || type === 'essay';
     $('add-ox-answer').hidden = type !== 'ox';
+    $('add-essay-fields').hidden = type !== 'essay';
     $('add-question').placeholder = {
       blank: '예: 이자·배당소득의 원천징수세율은 ___%다.',
       short: '예: 변동금리 대출의 대표 기준금리는?',
       ox: '예: DTI와 DSR은 높을수록 대출가능액이 커진다.',
+      essay: '예: ‘저출산’을 주제 문장으로 고쳐 쓰시오.',
     }[type];
   }
 
@@ -375,7 +505,9 @@
         '<div class="row"><span class="q"></span><button type="button" class="btn ghost">삭제</button></div>' +
         '<span class="sub"></span>';
       li.querySelector('.q').textContent = q.q;
-      li.querySelector('.sub').textContent = `${TYPE_LABEL[q.type]} · ${q.ch} · 정답: ${q.a.join(', ')}`;
+      li.querySelector('.sub').textContent = q.type === 'essay'
+        ? `${TYPE_LABEL[q.type]} · ${q.ch} · 채점 기준 ${q.rubric.length}개`
+        : `${TYPE_LABEL[q.type]} · ${q.ch} · 정답: ${q.a.join(', ')}`;
       const del = li.querySelector('button');
       del.setAttribute('aria-label', '이 문제 삭제');
       // confirm() 이 막힌 환경이라 두 번 눌러야 지워지게 한다.
@@ -409,17 +541,26 @@
     const ch = $('add-chapter').value.trim() || '직접 추가';
     const qText = $('add-question').value.trim();
     const why = $('add-why').value.trim();
-    const answer = type === 'ox'
-      ? document.querySelector('input[name="add-ox"]:checked').value
-      : $('add-answer').value.trim();
-    const aliases = type === 'ox' ? [] : $('add-alias').value.split(',').map((s) => s.trim()).filter(Boolean);
-
-    if (!qText) return setAddMsg(`${$('add-question-label').textContent}을 입력하세요.`, 'error');
-    if (type === 'blank' && !/_{3,}/.test(qText)) return setAddMsg('빈칸 자리에 밑줄 세 개(___)를 넣어 주세요.', 'error');
-    if (!answer) return setAddMsg('정답을 입력하세요.', 'error');
-
     const subj = state.subject;
-    const q = { id: `${subj}-custom-${Date.now().toString(36)}`, ch, type, q: qText, a: [answer, ...aliases] };
+    const id = `${subj}-custom-${Date.now().toString(36)}`;
+    if (!qText) return setAddMsg(`${$('add-question-label').textContent}을 입력하세요.`, 'error');
+
+    let q;
+    if (type === 'essay') {
+      const model = $('add-model').value.trim();
+      const rubric = $('add-rubric').value.split('\n').map((s) => s.trim()).filter(Boolean).map((label) => ({ label }));
+      if (!model) return setAddMsg('모범 답안을 입력하세요.', 'error');
+      if (!rubric.length) return setAddMsg('채점 기준을 한 줄 이상 입력하세요.', 'error');
+      q = { id, ch, type, q: qText, model, rubric };
+    } else {
+      const answer = type === 'ox'
+        ? document.querySelector('input[name="add-ox"]:checked').value
+        : $('add-answer').value.trim();
+      const aliases = type === 'ox' ? [] : $('add-alias').value.split(',').map((s) => s.trim()).filter(Boolean);
+      if (type === 'blank' && !/_{3,}/.test(qText)) return setAddMsg('빈칸 자리에 밑줄 세 개(___)를 넣어 주세요.', 'error');
+      if (!answer) return setAddMsg('정답을 입력하세요.', 'error');
+      q = { id, ch, type, q: qText, a: [answer, ...aliases] };
+    }
     if (why) q.why = why;
     store.custom[subj].push(q);
     saveStore();
@@ -428,6 +569,8 @@
     $('add-answer').value = '';
     $('add-alias').value = '';
     $('add-why').value = '';
+    $('add-model').value = '';
+    $('add-rubric').value = '';
     setAddMsg('추가했어요. 다음 풀이부터 함께 출제됩니다.', 'ok');
     renderManage();
     $('add-question').focus();
@@ -470,8 +613,16 @@
     for (const subj of SUBJECTS) {
       const have = new Set(store.custom[subj].map((q) => q.id));
       for (const q of data.custom?.[subj] || []) {
-        if (!q || have.has(q.id) || !q.q || !Array.isArray(q.a) || !TYPE_LABEL[q.type]) continue;
-        const item = { id: q.id, ch: q.ch || '직접 추가', type: q.type, q: q.q, a: q.a.map(String) };
+        if (!q || have.has(q.id) || !q.q || !TYPE_LABEL[q.type]) continue;
+        const item = { id: q.id, ch: q.ch || '직접 추가', type: q.type, q: q.q };
+        if (q.type === 'essay') {
+          if (typeof q.model !== 'string' || !Array.isArray(q.rubric) || !q.rubric.length) continue;
+          item.model = q.model;
+          item.rubric = q.rubric.filter((r) => r && r.label).map((r) => ({ label: String(r.label) }));
+        } else {
+          if (!Array.isArray(q.a)) continue;
+          item.a = q.a.map(String);
+        }
         if (typeof q.why === 'string' && q.why) item.why = q.why;
         store.custom[subj].push(item);
         added++;

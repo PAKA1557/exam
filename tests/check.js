@@ -1,11 +1,12 @@
 // 문제 데이터와 채점 로직 점검: node tests/check.js
 const assert = require('assert');
 const path = require('path');
-const { grade, normalize } = require(path.join(__dirname, '..', 'grade.js'));
+const { grade, normalize, checkRule, isKnownRule } = require(path.join(__dirname, '..', 'grade.js'));
 
 global.window = {};
 require(path.join(__dirname, '..', 'data', 'finance.js'));
 require(path.join(__dirname, '..', 'data', 'insurance.js'));
+require(path.join(__dirname, '..', 'data', 'writing.js'));
 const BANK = window.QUIZ_BANK;
 
 let failures = 0;
@@ -21,12 +22,26 @@ for (const [subj, { title, questions }] of Object.entries(BANK)) {
     check(`${q.id} 형식`, () => {
       assert.ok(!ids.has(q.id), '중복 id');
       ids.add(q.id);
-      assert.ok(['blank', 'short', 'ox'].includes(q.type), 'type 은 blank/short/ox');
+      assert.ok(['blank', 'short', 'ox', 'essay'].includes(q.type), 'type 은 blank/short/ox/essay');
       assert.ok(q.ch && q.q, '단원과 문제 필요');
+      if (q.type === 'essay') {
+        assert.ok(q.model, '모범 답안 필요');
+        assert.ok(Array.isArray(q.rubric) && q.rubric.length, '채점 기준 필요');
+        for (const r of q.rubric) {
+          assert.ok(r.label, '기준 이름 필요');
+          if (r.auto) {
+            assert.ok(isKnownRule(r.auto), `알 수 없는 자동 기준: ${JSON.stringify(r.auto)}`);
+            // 모범 답안이 자동 기준에 걸리면 기준이 너무 엄격한 것이다.
+            assert.ok(checkRule(r.auto, q.model), `모범 답안이 자동 기준 「${r.label}」을 통과하지 못함`);
+          }
+        }
+        return;
+      }
       assert.ok(Array.isArray(q.a) && q.a.length, '정답 필요');
       if (q.type === 'blank') assert.ok(/_{3,}/.test(q.q), '빈칸(___) 없음');
       if (q.type === 'ox') assert.ok(q.a.length === 1 && ['O', 'X'].includes(q.a[0]), "O/X 정답은 ['O'] 또는 ['X']");
     });
+    if (q.type === 'essay') continue;
     check(`${q.id} 대표 정답으로 채점`, () => assert.ok(grade(q, q.a[0])));
     check(`${q.id} 빈 답은 오답`, () => assert.ok(!grade(q, '')));
   }
@@ -38,11 +53,25 @@ check('띄어쓰기·부호 무시', () => assert.strictEqual(normalize(' 대출
 check('여러 항목은 순서 무관', () => assert.ok(grade(multi, '보장성 투자성 예금성 대출성')));
 check('여러 항목 일부만 쓰면 오답', () => assert.ok(!grade(multi, '예금성, 대출성')));
 check('O/X 는 반대 답이면 오답', () => assert.ok(!grade({ type: 'ox', a: ['O'] }, 'X')));
+check('순서 있는 항목은 순서가 바뀌면 오답', () => assert.ok(!grade({ a: ['x'], all: ['원인', '해결'], ordered: true }, '해결 다음 원인')));
+
+// 서술형 자동 판정: 교재의 좋은/나쁜 주제 문장 예시
+const good = '패스트푸드 섭취는 청소년의 건강을 위협하는 주요 원인이다.';
+check('좋은 주제 문장은 형태 기준 통과', () => {
+  for (const r of ['complete', 'declarative', 'noFigurative', 'singleSentence']) assert.ok(checkRule(r, good), r);
+});
+check('의문문은 평서문 기준 탈락', () => assert.ok(!checkRule('declarative', '청소년은 왜 패스트푸드에 몰입할까?')));
+check('비유문은 비유 기준 탈락', () => assert.ok(!checkRule('noFigurative', '패스트푸드는 청소년에게 마치 달콤한 독과 같다.')));
+check('단어만 쓰면 완성 문장 기준 탈락', () => assert.ok(!checkRule('complete', '환경 문제')));
+check('두 문장은 한 문장 기준 탈락', () => assert.ok(!checkRule('singleSentence', '첫 문장이다. 둘째 문장이다.')));
+check('번호 위계 없는 개요는 탈락', () => assert.ok(!checkRule('numbered', '서론 원인 해결 결론')));
+check('순서가 뒤바뀐 개요는 탈락', () => assert.ok(!checkRule({ order: [['원인'], ['해결']] }, '해결 방안을 먼저 쓰고 원인은 나중에')));
 check('대소문자 무시', () => assert.ok(grade({ a: ['COFIX'] }, 'cofix')));
 
 const counts = Object.entries(BANK).map(([s, b]) => {
   const ox = b.questions.filter((q) => q.type === 'ox').length;
-  return `${s} ${b.questions.length} (O/X ${ox})`;
+  const essay = b.questions.filter((q) => q.type === 'essay').length;
+  return `${s} ${b.questions.length} (O/X ${ox}${essay ? `, 서술형 ${essay}` : ''})`;
 }).join(', ');
 if (failures) {
   console.error(`\n실패 ${failures}건`);

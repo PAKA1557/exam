@@ -1,6 +1,6 @@
 # 시험 대비 문제풀이
 
-금융경영의 이해·보험의 이해 중간고사 대비용 빈칸 채우기·단답형·O/X 문제풀이 앱입니다. 휴대폰에서도 쓸 수 있습니다.
+금융경영의 이해·보험의 이해·AI시대의 사고와 표현 시험 대비용 문제풀이 앱입니다. 빈칸 채우기·단답형·O/X·서술형(채점 기준표로 자가 채점)을 지원하고, 휴대폰에서도 쓸 수 있습니다.
 
 - 실행: `index.html`을 브라우저로 열면 됩니다. 빌드 과정은 없습니다.
 - 점검: `node tests/check.js` (데이터 형식, 대표 정답 채점, 채점 규칙)
@@ -24,4 +24,4 @@ GitHub Pages로 올리는 법:
 
 ## 문제 추가
 - 앱 안: 과목 화면 → "문제 직접 추가하기"
-- 파일: `data/finance.js`, `data/insurance.js`에 같은 형식으로 추가한 뒤 `node tests/check.js` 실행
+- 파일: `data/finance.js`, `data/insurance.js`, `data/writing.js`에 같은 형식으로 추가한 뒤 `node tests/check.js` 실행
