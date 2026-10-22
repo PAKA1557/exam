@@ -52,7 +52,11 @@ body {
   font-size: 16px;
   line-height: 1.6;
   word-break: keep-all;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+/* 모바일: 버튼 두 번 탭 확대와 탭할 때 깜빡임을 없앤다. */
+button, select, input, textarea, .seg label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 .app {
   max-width: 640px;
@@ -200,8 +204,19 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* 홈 화면에 설치해 전체 화면으로 열었을 때 노치·홈 바를 피한다. */
+@media (display-mode: standalone) {
+  html .app { /* 좁은 화면 규칙보다 우선 */
+    padding-top: calc(24px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (max-width: 480px) {
+  .app { padding-block: 24px 48px; }
   h1 { font-size: 1.875rem; }
+  .setup, .card { padding: 18px 16px; }
+  .ox-btn { min-height: 128px; }
   .question { font-size: 1.125rem; }
   .answer-actions .btn, .actions .btn { flex: 1 1 auto; }
 }

@@ -1,9 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>시험 대비 문제풀이</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<!-- standalone:start  홈 화면 설치·오프라인용. 아티팩트 빌드에서는 빠진다. -->
+<meta name="theme-color" content="#0f6b5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="시험문제">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<!-- standalone:end -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="styles.css">
+</head>
+<body>
 
 <div class="app" id="app">
 
@@ -12,7 +29,7 @@
     <header class="home-head">
       <p class="eyebrow">2026 2학기 중간고사</p>
       <h1>시험 대비 문제풀이</h1>
-      <p class="lede">과목을 고르면 빈칸 채우기와 단답형 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
+      <p class="lede">과목을 고르면 빈칸 채우기, 단답형, O/X 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
     </header>
     <div class="subject-grid" id="subject-grid"></div>
   </section>
@@ -83,7 +100,8 @@
 
       <form id="answer-form" class="answer" autocomplete="off">
         <label for="answer-input" class="sr-only">답 입력</label>
-        <input type="text" id="answer-input" placeholder="답을 입력하세요" enterkeyhint="done">
+        <input type="text" id="answer-input" placeholder="답을 입력하세요" enterkeyhint="done"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
         <div class="answer-actions">
           <button type="submit" class="btn primary" id="btn-check">확인</button>
           <button type="button" class="btn ghost" id="btn-skip">모르겠어요</button>
@@ -194,3 +212,13 @@
 <script src="data/finance.js"></script>
 <script src="data/insurance.js"></script>
 <script src="app.js"></script>
+<!-- standalone:start -->
+<script>
+  // 웹 주소(https, 또는 개발용 localhost)로 열었을 때만 오프라인 캐시를 켠다. 파일로 직접 열거나 아티팩트에서는 건너뛴다.
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+<!-- standalone:end -->
+</body>
+</html>
