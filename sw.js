@@ -1,6 +1,6 @@
 // 오프라인 캐시. 앱 파일을 설치 시점에 받아 두고, 인터넷이 없어도 문제를 풀 수 있게 한다.
 // 앱 파일을 바꾸면 VERSION 을 올려야 휴대폰에 새 버전이 내려간다.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `exam-quiz-${VERSION}`;
 const APP_FILES = [
   './',
@@ -11,6 +11,8 @@ const APP_FILES = [
   'data/finance.js',
   'data/insurance.js',
   'data/writing.js',
+  'data/economics.js',
+  'econ.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-180.png',

@@ -29,7 +29,7 @@
     <header class="home-head">
       <p class="eyebrow">2026 2학기 중간고사</p>
       <h1>시험 대비 문제풀이</h1>
-      <p class="lede">과목을 고르면 빈칸 채우기, 단답형, O/X, 서술형 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
+      <p class="lede">과목을 고르면 빈칸 채우기, 단답형, O/X, 서술형, 그래프 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
     </header>
     <div class="subject-grid" id="subject-grid"></div>
   </section>
@@ -49,6 +49,7 @@
           <label data-type="short"><input type="radio" name="mode" id="mode-short" value="short"><span>단답형</span></label>
           <label data-type="ox"><input type="radio" name="mode" id="mode-ox" value="ox"><span>O/X</span></label>
           <label data-type="essay"><input type="radio" name="mode" id="mode-essay" value="essay"><span>서술형</span></label>
+          <label data-type="shift"><input type="radio" name="mode" id="mode-shift" value="shift"><span>그래프 서술형</span></label>
         </div>
       </fieldset>
 
@@ -110,6 +111,55 @@
         </div>
       </form>
 
+      <!-- 그래프 서술형: 곡선 이동과 결과를 고른다. 새 균형점은 그리지 않는다(답이 보이지 않게). -->
+      <div class="builder" id="builder" hidden>
+        <div class="graph-box" id="builder-graph"></div>
+        <fieldset class="brow">
+          <legend>수요곡선</legend>
+          <div class="seg seg-sm">
+            <label><input type="radio" name="b-d" id="b-d-left" value="left"><span>← 왼쪽</span></label>
+            <label><input type="radio" name="b-d" id="b-d-none" value="none"><span>그대로</span></label>
+            <label><input type="radio" name="b-d" id="b-d-right" value="right"><span>오른쪽 →</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="brow">
+          <legend>공급곡선</legend>
+          <div class="seg seg-sm">
+            <label><input type="radio" name="b-s" id="b-s-left" value="left"><span>← 왼쪽</span></label>
+            <label><input type="radio" name="b-s" id="b-s-none" value="none"><span>그대로</span></label>
+            <label><input type="radio" name="b-s" id="b-s-right" value="right"><span>오른쪽 →</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="brow">
+          <legend>균형가격</legend>
+          <div class="seg seg-sm">
+            <label><input type="radio" name="b-price" id="b-price-up" value="up"><span>상승</span></label>
+            <label><input type="radio" name="b-price" id="b-price-down" value="down"><span>하락</span></label>
+            <label><input type="radio" name="b-price" id="b-price-same" value="same"><span>불변</span></label>
+            <label><input type="radio" name="b-price" id="b-price-unclear" value="unclear"><span>불분명</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="brow">
+          <legend>균형거래량</legend>
+          <div class="seg seg-sm">
+            <label><input type="radio" name="b-qty" id="b-qty-up" value="up"><span>증가</span></label>
+            <label><input type="radio" name="b-qty" id="b-qty-down" value="down"><span>감소</span></label>
+            <label><input type="radio" name="b-qty" id="b-qty-same" value="same"><span>불변</span></label>
+            <label><input type="radio" name="b-qty" id="b-qty-unclear" value="unclear"><span>불분명</span></label>
+          </div>
+        </fieldset>
+        <p class="form-msg" id="builder-msg" role="status"></p>
+      </div>
+
+      <details class="sketch" id="sketch-wrap" open hidden>
+        <summary>그래프 손으로 그려 보기 <span class="hint">채점하지 않아요</span></summary>
+        <canvas id="sketch-canvas" aria-label="손가락이나 마우스로 그래프를 그리는 칸"></canvas>
+        <div class="answer-actions">
+          <button type="button" class="btn ghost" id="sketch-undo">한 획 지우기</button>
+          <button type="button" class="btn ghost" id="sketch-clear">모두 지우기</button>
+        </div>
+      </details>
+
       <form id="essay-form" class="answer" autocomplete="off" hidden>
         <label for="essay-input" class="sr-only">답안 입력</label>
         <textarea id="essay-input" rows="6" placeholder="답안을 쓰세요"
@@ -132,6 +182,10 @@
           <div class="essay-block">
             <p class="essay-label">모범 답안</p>
             <p class="essay-text model" id="essay-model"></p>
+          </div>
+          <div class="essay-block" id="model-graph-block" hidden>
+            <p class="essay-label">모범 그래프</p>
+            <div class="graph-box" id="model-graph"></div>
           </div>
           <fieldset class="rubric">
             <legend>채점 기준 · 내 답안이 충족한 항목에 체크하세요</legend>
@@ -255,6 +309,8 @@
 <script src="data/finance.js"></script>
 <script src="data/insurance.js"></script>
 <script src="data/writing.js"></script>
+<script src="data/economics.js"></script>
+<script src="econ.js"></script>
 <script src="app.js"></script>
 <!-- standalone:start -->
 <script>

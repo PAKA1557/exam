@@ -17,6 +17,8 @@
   --ins-soft: #e6e9f7;
   --wri: #8a3b6a;
   --wri-soft: #f4e6ee;
+  --eco: #7a5810;
+  --eco-soft: #f2ead6;
 
   --font-display: 'Hahmlet', 'Noto Serif KR', 'Apple SD Gothic Neo', serif;
   --font-body: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
@@ -26,7 +28,7 @@
   :root:not([data-theme="light"]) {
     --bg: #111614; --surface: #1a211e; --fg: #e6ece9; --muted: #9aa7a2; --line: #2e3833;
     --ok: #6fcf93; --ok-soft: #1b3325; --bad: #f08a7c; --bad-soft: #3a211d;
-    --fin: #5cc2ad; --fin-soft: #18332d; --ins: #9aa8f2; --ins-soft: #22274a; --wri: #e39cc6; --wri-soft: #3a2232;
+    --fin: #5cc2ad; --fin-soft: #18332d; --ins: #9aa8f2; --ins-soft: #22274a; --wri: #e39cc6; --wri-soft: #3a2232; --eco: #e2c070; --eco-soft: #362d17;
     --accent: var(--fin); --accent-soft: var(--fin-soft);
     color-scheme: dark;
   }
@@ -34,7 +36,7 @@
 :root[data-theme="dark"] {
   --bg: #111614; --surface: #1a211e; --fg: #e6ece9; --muted: #9aa7a2; --line: #2e3833;
   --ok: #6fcf93; --ok-soft: #1b3325; --bad: #f08a7c; --bad-soft: #3a211d;
-  --fin: #5cc2ad; --fin-soft: #18332d; --ins: #9aa8f2; --ins-soft: #22274a; --wri: #e39cc6; --wri-soft: #3a2232;
+  --fin: #5cc2ad; --fin-soft: #18332d; --ins: #9aa8f2; --ins-soft: #22274a; --wri: #e39cc6; --wri-soft: #3a2232; --eco: #e2c070; --eco-soft: #362d17;
   --accent: var(--fin); --accent-soft: var(--fin-soft);
   color-scheme: dark;
 }
@@ -43,6 +45,7 @@
 .app[data-subject="finance"] { --accent: var(--fin); --accent-soft: var(--fin-soft); }
 .app[data-subject="insurance"] { --accent: var(--ins); --accent-soft: var(--ins-soft); }
 .app[data-subject="writing"] { --accent: var(--wri); --accent-soft: var(--wri-soft); }
+.app[data-subject="economics"] { --accent: var(--eco); --accent-soft: var(--eco-soft); }
 
 /* 아티팩트 뼈대에도 있지만, 파일을 직접 열 때를 위해 여기서도 보장한다. */
 [hidden] { display: none !important; }
@@ -99,6 +102,7 @@ p { margin: 0; }
 .subject-card[data-subject="finance"] { --c: var(--fin); }
 .subject-card[data-subject="insurance"] { --c: var(--ins); }
 .subject-card[data-subject="writing"] { --c: var(--wri); }
+.subject-card[data-subject="economics"] { --c: var(--eco); }
 
 /* 폼 */
 .setup { display: flex; flex-direction: column; gap: 18px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
@@ -193,6 +197,54 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 }
 .rubric .auto.pass { background: var(--ok-soft); color: var(--ok); }
 .rubric .auto.fail { background: var(--bad-soft); color: var(--bad); }
+.rubric li.excluded label { color: var(--muted); text-decoration: line-through; }
+.rubric li.excluded .auto { background: var(--bg); color: var(--muted); text-decoration: none; }
+
+/* 경제학 그래프 (econ.js 가 그리는 SVG) */
+.graph-box {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px; max-width: 520px; width: 100%; box-sizing: border-box;
+}
+.econ-graph { display: block; width: 100%; height: auto; font-family: var(--font-body); }
+.g-axis { stroke: var(--fg); stroke-width: 1.4; }
+.g-axis-label { fill: var(--fg); font-size: 14px; font-style: italic; }
+.g-curve { stroke-width: 2.4; stroke-linecap: round; }
+.g-d { stroke: var(--accent); }
+.g-s { stroke: var(--fg); }
+.g-old { opacity: 0.38; }
+.g-curve-label { font-size: 13px; font-style: italic; }
+.g-d-text { fill: var(--accent); }
+.g-s-text { fill: var(--fg); }
+.g-sub { font-size: 9.5px; font-style: normal; }
+.g-guide { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.g-tick, .g-point { font-size: 12px; font-style: italic; }
+.g-tick { fill: var(--muted); }
+.g-point { fill: var(--fg); }
+.g-dot { fill: var(--fg); }
+.g-cs { fill: var(--accent); opacity: 0.28; }
+.g-ps { fill: var(--muted); opacity: 0.3; }
+.g-legend { fill: var(--fg); font-size: 12px; }
+.g-arrow { stroke: var(--accent); stroke-width: 1.6; }
+.g-arrow-head { fill: var(--accent); }
+
+/* 그래프 그리기 */
+.builder { display: flex; flex-direction: column; gap: 12px; }
+.brow { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.brow legend { font-size: 0.8125rem; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.seg-sm span { min-height: 38px; padding: 0 14px; font-size: 0.875rem; }
+.seg input:disabled + span { opacity: 0.55; }
+.seg input:disabled:checked + span { opacity: 1; }
+
+/* 손으로 그려 보기 */
+.sketch { display: flex; flex-direction: column; gap: 10px; }
+.sketch summary { cursor: pointer; font-weight: 600; font-size: 0.9375rem; padding: 6px 0; }
+.sketch summary .hint { font-weight: 400; margin-left: 6px; }
+.sketch canvas {
+  display: block; width: 100%; max-width: 520px; margin: 8px 0 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  touch-action: none; cursor: crosshair;
+}
+
 .rubric-score { font-size: 0.875rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* O/X 버튼: 시험지의 동그라미와 가위표 */

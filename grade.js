@@ -78,8 +78,10 @@
   };
 
   // rule: 'declarative' 같은 이름, 또는 {any:[...]}, {all:[...]}, {order:[[...],[...]]}
-  function checkRule(rule, text) {
+  //       {field, equals}: 글이 아니라 그래프에서 고른 값(answer[field])과 비교한다.
+  function checkRule(rule, text, answer) {
     if (typeof rule === 'string') return SENTENCE_RULES[rule] ? SENTENCE_RULES[rule](text) : false;
+    if (rule.field) return !!answer && answer[rule.field] === rule.equals;
     const n = normalize(text);
     if (rule.any) return rule.any.some((w) => n.includes(normalize(w)));
     if (rule.all) return rule.all.every((w) => n.includes(normalize(w)));
@@ -89,7 +91,7 @@
 
   function isKnownRule(rule) {
     if (typeof rule === 'string') return rule in SENTENCE_RULES;
-    return !!rule && (Array.isArray(rule.any) || Array.isArray(rule.all) || Array.isArray(rule.order));
+    return !!rule && (Array.isArray(rule.any) || Array.isArray(rule.all) || Array.isArray(rule.order) || (typeof rule.field === 'string' && 'equals' in rule));
   }
 
   const api = { normalize, grade, checkRule, isKnownRule, RULE_HINT };

@@ -5,10 +5,11 @@
 
   const BANK = window.QUIZ_BANK;
   const { grade, checkRule } = window.QuizGrade;
-  const SUBJECTS = ['finance', 'insurance', 'writing'];
+  const SUBJECTS = ['finance', 'insurance', 'writing', 'economics'];
   const STORE_KEY = 'exam-quiz.v1';
-  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X', essay: '서술형' };
-  const TYPE_SHORT = { blank: '빈칸', short: '단답', ox: 'O/X', essay: '서술' };
+  const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X', essay: '서술형', shift: '그래프 서술형' };
+  const TYPE_SHORT = { blank: '빈칸', short: '단답', ox: 'O/X', essay: '서술', shift: '그래프' };
+  const BUILDER_FIELDS = ['d', 's', 'price', 'qty'];
 
   const $ = (id) => document.getElementById(id);
 
@@ -215,10 +216,15 @@
 
     // O/X 는 버튼, 서술형은 여러 줄 칸, 나머지는 한 줄 입력칸으로 답한다.
     const isOx = q.type === 'ox';
-    const isEssay = q.type === 'essay';
+    const isShift = q.type === 'shift';
+    const isEssay = q.type === 'essay' || isShift;
     $('ox-buttons').hidden = !isOx;
     $('answer-form').hidden = isOx || isEssay;
     $('essay-form').hidden = !isEssay;
+    $('builder').hidden = !isShift;
+    if (isShift) resetBuilder();
+    $('sketch-wrap').hidden = !q.sketch;
+    if (q.sketch) sketchReset();
     const input = $('answer-input');
     input.value = '';
     input.disabled = isOx || isEssay;
@@ -227,7 +233,10 @@
     essay.value = '';
     essay.disabled = !isEssay;
     // 개요 문제는 칸을 크게 연다.
-    essay.rows = /개요/.test(q.q) && !/요건/.test(q.q) ? 12 : 5;
+    essay.rows = /개요/.test(q.q) && !/요건/.test(q.q) ? 12 : isShift ? 6 : 5;
+    essay.placeholder = isShift
+      ? '첫째(어느 곡선이 이동하는지), 둘째(이유와 방향), 셋째(균형가격·거래량 변화) 순서로 쓰세요. 비워 두면 그래프만 채점합니다.'
+      : '답안을 쓰세요';
 
     // 이전 문제의 정답이 남아 있지 않도록 비운다.
     $('feedback').hidden = true;
@@ -237,7 +246,9 @@
     $('essay-mine').textContent = '';
     $('essay-model').textContent = '';
     $('rubric-list').replaceChildren();
-    if (isEssay) essay.focus();
+    $('model-graph').replaceChildren();
+    if (isShift) $('builder-graph').scrollIntoView({ block: 'nearest' });
+    else if (isEssay && !q.sketch) essay.focus();
     else if (!isOx) input.focus();
   }
 
@@ -285,9 +296,12 @@
 
   // ---------- 서술형 ----------
   // 제출하면 모범 답안과 채점 기준을 보여 주고, 사용자가 기준별로 체크해 확정한다.
-  function showEssayReview(q, input) {
+  // answer: 그래프 서술형에서 고른 값 {d, s, price, qty}. skipped: ‘모범 답안 보기’로 넘어간 경우.
+  function showEssayReview(q, input, answer, skipped) {
+    state.pending = { input, answer, skipped };
     $('essay-input').disabled = true;
     $('essay-form').hidden = true;
+    setBuilderDisabled(true);
 
     const fb = $('feedback');
     fb.className = 'feedback review';
@@ -296,6 +310,8 @@
     $('essay-mine-block').hidden = !input.trim();
     $('essay-mine').textContent = input;
     $('essay-model').textContent = q.model;
+    $('model-graph-block').hidden = !q.graph;
+    $('model-graph').innerHTML = q.graph ? window.EconGraph.render(q.graph) : '';
 
     const list = $('rubric-list');
     list.replaceChildren();
@@ -308,16 +324,25 @@
       box.id = id;
       label.htmlFor = id;
       label.textContent = r.label;
-      if (r.auto && input.trim()) {
-        const pass = checkRule(r.auto, input);
+      const isField = !!(r.auto && r.auto.field);
+      // 그래프 서술형에서 설명을 비워 두면 서술 기준은 빼고 그래프만 채점한다.
+      const excluded = !!r.text && !input.trim();
+      if (excluded) {
+        li.classList.add('excluded');
+        const tag = document.createElement('span');
+        tag.className = 'auto';
+        tag.textContent = '서술 안 함';
+        label.appendChild(tag);
+      } else if (r.auto && (input.trim() || isField) && !skipped) {
+        const pass = checkRule(r.auto, input, answer);
         box.checked = pass;
         const tag = document.createElement('span');
         tag.className = 'auto ' + (pass ? 'pass' : 'fail');
         tag.textContent = pass ? '자동 ✓' : '자동 ✗';
         label.appendChild(tag);
       }
-      // 답을 안 썼으면 체크할 것이 없다.
-      box.disabled = !input.trim();
+      // 그래프에서 고른 값은 객관식이라 직접 바꿀 수 없다. 답을 안 썼으면 체크할 것이 없다.
+      box.disabled = excluded || isField || skipped || (q.type === 'essay' && !input.trim());
       li.addEventListener('change', updateRubricScore);
       list.appendChild(li);
     });
@@ -330,14 +355,15 @@
     $('btn-override').hidden = true;
     $('essay-review').hidden = false;
     $('btn-confirm').hidden = false;
-    $('btn-confirm').textContent = input.trim() ? '채점 확정' : '틀린 문제로 두고 넘어가기';
+    $('btn-confirm').textContent = skipped || (q.type === 'essay' && !input.trim()) ? '틀린 문제로 두고 넘어가기' : '채점 확정';
     $('btn-next').hidden = true;
     fb.hidden = false;
     $('essay-review').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
+  // 채점에 들어가는 기준만 (서술을 비워 빠진 기준 제외)
   function rubricBoxes() {
-    return [...$('rubric-list').querySelectorAll('input[type="checkbox"]')];
+    return [...$('rubric-list').querySelectorAll('li:not(.excluded) input[type="checkbox"]')];
   }
   function updateRubricScore() {
     const boxes = rubricBoxes();
@@ -347,30 +373,44 @@
 
   $('essay-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const v = $('essay-input').value;
-    if (!v.trim()) { $('essay-input').focus(); return; }
     const s = state.session;
-    showEssayReview(s.queue[s.index], v);
+    const q = s.queue[s.index];
+    const v = $('essay-input').value;
+    if (q.type === 'shift') {
+      const answer = builderAnswer();
+      if (BUILDER_FIELDS.some((f) => !answer[f])) {
+        setBuilderMsg('수요곡선, 공급곡선, 균형가격, 균형거래량을 모두 고르세요.', 'error');
+        $('builder').scrollIntoView({ block: 'start', behavior: 'smooth' });
+        return;
+      }
+      showEssayReview(q, v, answer, false);
+      return;
+    }
+    if (!v.trim()) { $('essay-input').focus(); return; }
+    showEssayReview(q, v, null, false);
   });
   $('btn-essay-skip').addEventListener('click', () => {
     const s = state.session;
-    showEssayReview(s.queue[s.index], '');
+    showEssayReview(s.queue[s.index], '', {}, true);
   });
   $('btn-confirm').addEventListener('click', () => {
     const s = state.session;
     const q = s.queue[s.index];
-    const input = $('essay-mine').textContent;
+    const { input, skipped } = state.pending;
     const boxes = rubricBoxes();
     const got = boxes.filter((b) => b.checked).length;
-    const correct = input.trim() !== '' && got === boxes.length;
+    const answered = q.type === 'shift' ? !skipped : input.trim() !== '';
+    const correct = answered && boxes.length > 0 && got === boxes.length;
+    const textSkipped = q.type === 'shift' && !skipped && !input.trim();
     s.results.push({ q, input, correct });
     markWrong(state.subject, q.id, !correct);
 
     for (const b of boxes) b.disabled = true;
     $('feedback').className = 'feedback ' + (correct ? 'ok' : 'bad');
-    $('verdict').textContent = correct
+    $('verdict').textContent = (correct
       ? `기준을 모두 충족했어요 (${got}/${boxes.length})`
-      : input.trim() ? `보완이 필요해요 (${got}/${boxes.length}) · 복습 목록에 넣었어요` : '복습 목록에 넣었어요';
+      : answered ? `보완이 필요해요 (${got}/${boxes.length}) · 복습 목록에 넣었어요` : '복습 목록에 넣었어요')
+      + (textSkipped ? ' · 서술은 채점하지 않았어요' : '');
     $('btn-confirm').hidden = true;
     $('btn-next').hidden = false;
     $('btn-next').textContent = s.index + 1 < s.queue.length ? '다음 문제' : '결과 보기';
@@ -439,7 +479,7 @@
       const li = document.createElement('li');
       li.innerHTML = '<span class="q"></span><span class="a"></span><span class="mine"></span>';
       li.querySelector('.q').textContent = r.q.q.replace(/_{3,}/g, '(   )');
-      if (r.q.type === 'essay') {
+      if (r.q.model) {
         li.querySelector('.a').textContent = '모범 답안: ' + r.q.model.split('\n')[0] + (r.q.model.includes('\n') ? ' …' : '');
         const mine = r.input.trim();
         li.querySelector('.mine').textContent = mine ? '내 답안: ' + (mine.length > 80 ? mine.slice(0, 80) + '…' : mine) : '답안 없음';
@@ -455,6 +495,112 @@
   $('btn-retry-wrong').addEventListener('click', () => {
     startSession(shuffle(state.session.missed), true);
   });
+
+  // ---------- 그래프 그리기 (그래프 서술형) ----------
+  function builderAnswer() {
+    const a = {};
+    for (const f of BUILDER_FIELDS) {
+      const c = document.querySelector(`input[name="b-${f}"]:checked`);
+      if (c) a[f] = c.value;
+    }
+    return a;
+  }
+  function drawBuilder() {
+    const a = builderAnswer();
+    $('builder-graph').innerHTML = window.EconGraph.render({ kind: 'shift', mode: 'builder', d: a.d || 'none', s: a.s || 'none' });
+  }
+  function setBuilderMsg(text, kind) {
+    const m = $('builder-msg');
+    m.textContent = text;
+    m.className = 'form-msg ' + (kind || '');
+  }
+  function setBuilderDisabled(off) {
+    for (const i of $('builder').querySelectorAll('input')) i.disabled = off;
+  }
+  function resetBuilder() {
+    for (const i of $('builder').querySelectorAll('input')) { i.checked = false; i.disabled = false; }
+    setBuilderMsg('곡선을 옮겨 보고, 균형가격과 거래량이 어떻게 되는지 고르세요.', '');
+    drawBuilder();
+  }
+  $('builder').addEventListener('change', () => {
+    drawBuilder();
+    setBuilderMsg('', '');
+  });
+
+  // ---------- 손으로 그려 보기 (채점하지 않음) ----------
+  // 획은 칸 크기에 대한 비율로 저장해, 화면 크기가 바뀌어도 다시 그릴 수 있게 한다.
+  const sketch = { strokes: [], current: null };
+  function sketchSize() {
+    const c = $('sketch-canvas');
+    const w = c.clientWidth;
+    if (!w) return false;
+    const dpr = window.devicePixelRatio || 1;
+    c.style.height = Math.round(w * 0.8) + 'px';
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(w * 0.8 * dpr);
+    return true;
+  }
+  function sketchDraw() {
+    const c = $('sketch-canvas');
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height, u = W / 400;
+    const css = getComputedStyle(document.documentElement);
+    ctx.clearRect(0, 0, W, H);
+    // 축과 P, Q, O 표시
+    ctx.strokeStyle = css.getPropertyValue('--muted').trim() || '#888';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(40 * u, 14 * u); ctx.lineTo(40 * u, H - 30 * u); ctx.lineTo(W - 14 * u, H - 30 * u);
+    ctx.stroke();
+    ctx.font = `italic ${14 * u}px serif`;
+    ctx.fillText('P', 22 * u, 24 * u);
+    ctx.fillText('Q', W - 22 * u, H - 10 * u);
+    ctx.fillText('O', 22 * u, H - 12 * u);
+    ctx.strokeStyle = css.getPropertyValue('--fg').trim() || '#000';
+    ctx.lineWidth = 2.4 * u;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const st of sketch.strokes.concat(sketch.current ? [sketch.current] : [])) {
+      ctx.beginPath();
+      st.forEach(([x, y], i) => (i ? ctx.lineTo(x * W, y * H) : ctx.moveTo(x * W, y * H)));
+      ctx.stroke();
+    }
+  }
+  function sketchReset() {
+    sketch.strokes = [];
+    sketch.current = null;
+    requestAnimationFrame(() => { if (sketchSize()) sketchDraw(); });
+  }
+  (function setupSketch() {
+    const c = $('sketch-canvas');
+    const pos = (e) => {
+      const r = c.getBoundingClientRect();
+      return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+    };
+    c.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      c.setPointerCapture(e.pointerId);
+      sketch.current = [pos(e)];
+      sketchDraw();
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (!sketch.current) return;
+      sketch.current.push(pos(e));
+      sketchDraw();
+    });
+    const end = () => {
+      if (sketch.current && sketch.current.length > 1) sketch.strokes.push(sketch.current);
+      sketch.current = null;
+      sketchDraw();
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    $('sketch-undo').addEventListener('click', () => { sketch.strokes.pop(); sketchDraw(); });
+    $('sketch-clear').addEventListener('click', () => { sketch.strokes = []; sketchDraw(); });
+    $('sketch-wrap').addEventListener('toggle', () => { if (sketchSize()) sketchDraw(); });
+    window.addEventListener('resize', () => { if (!$('sketch-wrap').hidden && sketchSize()) sketchDraw(); });
+  })();
 
   // ---------- 문제 추가/관리 ----------
   function addType() {
