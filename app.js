@@ -1,23 +1,46 @@
 // 시험 대비 문제풀이 — 화면 흐름과 상태 관리
-// 기본 문제는 data/*.js (window.QUIZ_BANK), 직접 추가한 문제와 오답 목록은 localStorage 에 저장한다.
+// 기본 문제는 data/*.js (window.QUIZ_BANK), 직접 추가한 문제와 문항별 학습 기록은 localStorage 에 저장한다.
+// 출제·기록 규칙은 adaptive.js 에 있다.
 (function () {
   'use strict';
 
   const BANK = window.QUIZ_BANK;
   const { grade, checkRule } = window.QuizGrade;
+  const Adaptive = window.Adaptive;
   const SUBJECTS = ['finance', 'insurance', 'writing', 'economics'];
   const STORE_KEY = 'exam-quiz.v1';
   const TYPE_LABEL = { blank: '빈칸 채우기', short: '단답형', ox: 'O/X', essay: '서술형', shift: '그래프 서술형' };
   const TYPE_SHORT = { blank: '빈칸', short: '단답', ox: 'O/X', essay: '서술', shift: '그래프' };
   const BUILDER_FIELDS = ['d', 's', 'price', 'qty'];
+  const LEVEL = { 1: '기억', 2: '이해', 3: '적용' };
+
+  // 경제학 2번(생성 문항)은 섹션 대신 수요·공급 변화 요인별로 집계한다. 문항 id 에 요인이 들어 있다.
+  const ECON_FACTOR = {
+    taxCut: ['수요 변화 요인', '소득세율 인하'], taxHike: ['수요 변화 요인', '소득세율 인상'],
+    inferior: ['수요 변화 요인', '열등재와 소득 증가'], substituteUp: ['수요 변화 요인', '대체재 가격 상승'],
+    complementUp: ['수요 변화 요인', '보완재 가격 상승'], complementDown: ['수요 변화 요인', '보완재 가격 하락'],
+    tasteUp: ['수요 변화 요인', '기호 변화'], expectD: ['수요 변화 요인', '소비자의 가격 예상'],
+    buyersUp: ['수요 변화 요인', '소비자 수 증가'],
+    factorUp: ['공급 변화 요인', '요소가격 상승'], factorDown: ['공급 변화 요인', '요소가격 하락'],
+    techUp: ['공급 변화 요인', '기술 진보'], sellersUp: ['공급 변화 요인', '생산자 수 증가'],
+    expectS: ['공급 변화 요인', '생산자의 가격 예상'],
+  };
+  const SEP = '\u0001';
+  // 문항이 속한 섹션 키 목록: '묶음 SEP 섹션'
+  function sectionKeys(q) {
+    if (q.sec) return [q.ch + SEP + q.sec];
+    const m = /^eco-[sc]-(.+)$/.exec(q.id);
+    if (m) return m[1].split('-').filter((f) => ECON_FACTOR[f]).map((f) => ECON_FACTOR[f].join(SEP));
+    return [q.ch + SEP + (q.id.includes('-custom-') ? '직접 추가한 문제' : q.ch)];
+  }
 
   const $ = (id) => document.getElementById(id);
 
   // ---------- 저장소 ----------
   // 저장이 막힌 환경(사생활 보호 모드 등)에서도 메모리 상태로 계속 동작한다.
   function emptyStore() {
-    const s = { custom: {}, wrong: {} };
-    for (const subj of SUBJECTS) { s.custom[subj] = []; s.wrong[subj] = []; }
+    const s = { custom: {}, progress: {} };
+    for (const subj of SUBJECTS) { s.custom[subj] = []; s.progress[subj] = {}; }
     return s;
   }
   function loadStore() {
@@ -28,7 +51,11 @@
       const base = emptyStore();
       for (const subj of SUBJECTS) {
         base.custom[subj] = Array.isArray(s.custom?.[subj]) ? s.custom[subj] : [];
-        base.wrong[subj] = Array.isArray(s.wrong?.[subj]) ? s.wrong[subj] : [];
+        base.progress[subj] = Adaptive.merge({}, s.progress?.[subj]);
+        // 이전 버전의 ‘틀린 목록’은 ‘방금 틀림’ 단계로 옮긴다.
+        for (const id of Array.isArray(s.wrong?.[subj]) ? s.wrong[subj] : []) {
+          if (typeof id === 'string' && !base.progress[subj][id]) base.progress[subj][id] = { st: 1, n: 1, c: 0, t: 0 };
+        }
       }
       return base;
     } catch (e) {
@@ -44,7 +71,7 @@
   // ---------- 상태 ----------
   const state = {
     subject: null,
-    session: null, // { queue, index, results: [{q, input, correct}], review }
+    session: null, // { queue, index, results: [{q, input, correct, outcome, prev, retry}], review }
   };
 
   function allQuestions(subj) {
@@ -53,16 +80,26 @@
   function chaptersOf(subj) {
     return [...new Set(allQuestions(subj).map((q) => q.ch))];
   }
-  function wrongQuestions(subj) {
-    const ids = new Set(store.wrong[subj]);
-    return allQuestions(subj).filter((q) => ids.has(q.id));
+  function records(subj) {
+    return store.progress[subj];
   }
-  function markWrong(subj, id, isWrong) {
-    const list = store.wrong[subj];
-    const at = list.indexOf(id);
-    if (isWrong && at === -1) list.push(id);
-    if (!isWrong && at !== -1) list.splice(at, 1);
+  // 약한 문제(단계 1~2) = 복습할 문제
+  function weakQuestions(subj) {
+    const recs = records(subj);
+    return allQuestions(subj).filter((q) => Adaptive.group(recs[q.id]) === 'weak');
+  }
+  // 결과를 기록하고, 되돌릴 수 있게 이전 기록을 돌려준다.
+  function recordResult(q, outcome) {
+    const recs = records(state.subject);
+    const prev = recs[q.id];
+    recs[q.id] = Adaptive.update(prev, outcome, Date.now());
     saveStore();
+    return prev;
+  }
+  function restoreRecord(q, prev) {
+    const recs = records(state.subject);
+    if (prev) recs[q.id] = prev;
+    else delete recs[q.id];
   }
 
   function shuffle(arr) {
@@ -100,11 +137,16 @@
       btn.dataset.subject = subj;
       btn.innerHTML =
         '<span class="name"></span>' +
-        '<span class="stats"><span>문제 <b class="n-all"></b></span><span>복습할 문제 <b class="n-wrong"></b></span></span>' +
+        '<span class="stats"><span>문제 <b class="n-all"></b></span><span>약한 문제 <b class="n-wrong"></b></span><span>익힘 <b class="n-known"></b></span></span>' +
+        '<span class="mastery-slot"></span>' +
         '<span class="go">이 과목 풀기 →</span>';
+      const qs = allQuestions(subj);
+      const [st] = Adaptive.stats(qs, records(subj), () => 'all');
       btn.querySelector('.name').textContent = BANK[subj].title;
-      btn.querySelector('.n-all').textContent = allQuestions(subj).length;
-      btn.querySelector('.n-wrong').textContent = store.wrong[subj].length;
+      btn.querySelector('.n-all').textContent = qs.length;
+      btn.querySelector('.n-wrong').textContent = st.st[1] + st.st[2];
+      btn.querySelector('.n-known').textContent = st.st[5];
+      btn.querySelector('.mastery-slot').replaceWith(masteryBar(st));
       btn.addEventListener('click', () => {
         state.subject = subj;
         show('setup');
@@ -122,9 +164,32 @@
     const subj = state.subject;
     const mode = selectedMode();
     const ch = $('setup-chapter').value;
+    const sec = $('setup-section').value;
     return allQuestions(subj).filter(
-      (q) => (mode === 'mix' || q.type === mode) && (ch === '' || q.ch === ch)
+      (q) => (mode === 'mix' || q.type === mode) && (ch === '' || q.ch === ch) &&
+        (sec === '' || sectionKeys(q).includes(sec))
     );
+  }
+
+  // 단원을 고르면 그 단원의 섹션만 고를 수 있게 한다. 경제학 요인은 단원과 묶음이 달라 전체 범위에서 고른다.
+  function fillSections() {
+    const subj = state.subject;
+    const ch = $('setup-chapter').value;
+    const sel = $('setup-section');
+    const prev = sel.value;
+    const keys = new Set();
+    for (const q of allQuestions(subj)) {
+      if (ch !== '' && q.ch !== ch) continue;
+      for (const k of sectionKeys(q)) keys.add(k);
+    }
+    sel.replaceChildren(new Option('전체 섹션', ''));
+    for (const k of keys) {
+      const [group, name] = k.split(SEP);
+      if (group === name) continue;
+      sel.appendChild(new Option(ch === '' ? `${name} (${group})` : name, k));
+    }
+    sel.value = [...sel.options].some((o) => o.value === prev) ? prev : '';
+    sel.disabled = sel.options.length <= 1;
   }
 
   function renderSetup() {
@@ -151,29 +216,191 @@
     sel.replaceChildren(new Option('전체 범위', ''));
     for (const ch of chaptersOf(subj)) sel.appendChild(new Option(ch, ch));
     sel.value = [...sel.options].some((o) => o.value === prev) ? prev : '';
+    fillSections();
 
     updateAvail();
+    renderStats();
   }
 
   function updateAvail() {
     const n = filteredPool().length;
     $('setup-avail').textContent = n ? `조건에 맞는 문제 ${n}개` : '조건에 맞는 문제가 없습니다. 형식이나 범위를 바꿔 보세요.';
     $('btn-start').disabled = n === 0;
-    const w = store.wrong[state.subject].length;
+    const w = weakQuestions(state.subject).length;
     $('btn-review').disabled = w === 0;
-    $('btn-review').textContent = w ? `틀린 문제만 풀기 (${w})` : '틀린 문제 없음';
+    $('btn-review').textContent = w ? `약한 문제만 풀기 (${w})` : '약한 문제 없음';
+    const adaptive = document.querySelector('input[name="strategy"]:checked').value === 'adaptive';
+    $('strategy-hint').textContent = adaptive
+      ? '약한 문제 60%, 안 푼 문제 25%, 익힌 문제 15% 비율로 고르고, 덜 맞힌 섹션을 더 자주 냅니다.'
+      : '조건에 맞는 문제를 기록과 상관없이 무작위로 냅니다.';
   }
 
-  $('setup-form').addEventListener('change', updateAvail);
+  function buildSet(pool) {
+    const count = $('setup-count').value === 'all' ? Infinity : Number($('setup-count').value);
+    const strategy = document.querySelector('input[name="strategy"]:checked').value;
+    if (strategy === 'random') return shuffle(pool).slice(0, count);
+    return Adaptive.pick(pool, records(state.subject), count, {
+      tagsOf: sectionKeys,
+      all: allQuestions(state.subject),
+    });
+  }
+
+  $('setup-form').addEventListener('change', (e) => {
+    if (e.target.id === 'setup-chapter') fillSections();
+    updateAvail();
+  });
   $('setup-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const pool = shuffle(filteredPool());
-    const count = $('setup-count').value;
-    startSession(count === 'all' ? pool : pool.slice(0, Number(count)), false);
+    startSession(buildSet(filteredPool()), false);
   });
   $('btn-review').addEventListener('click', () => {
-    startSession(shuffle(wrongQuestions(state.subject)), true);
+    startSession(shuffle(weakQuestions(state.subject)), true);
   });
+
+  // ---------- 학습 현황 (섹션·수준별 정답률) ----------
+  const pct = (a) => (a == null ? '—' : `${Math.round(a * 100)}%`);
+
+  // 익힘 단계 분포 막대: 안 푼 문제 / 약함(1~2) / 보통(3~4) / 익힘(5)
+  function masteryBar(st) {
+    const parts = [
+      ['new', st.st[0], '안 푼 문제'],
+      ['weak', st.st[1] + st.st[2], '약함'],
+      ['mid', st.st[3] + st.st[4], '보통'],
+      ['known', st.st[5], '익힘'],
+    ];
+    const wrap = document.createElement('span');
+    wrap.className = 'mastery-bar';
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', parts.map(([, n, l]) => `${l} ${n}`).join(', '));
+    for (const [cls, n] of parts) {
+      if (!n) continue;
+      const seg = document.createElement('span');
+      seg.className = 'seg-' + cls;
+      seg.style.flexGrow = n;
+      wrap.appendChild(seg);
+    }
+    return wrap;
+  }
+
+  function accBar(acc) {
+    const bar = document.createElement('span');
+    bar.className = 'acc-bar';
+    const fill = document.createElement('span');
+    fill.className = 'acc-fill' + (acc == null ? '' : acc < 0.5 ? ' low' : acc < 0.8 ? ' mid' : ' high');
+    fill.style.width = acc == null ? '0' : `${Math.round(acc * 100)}%`;
+    bar.appendChild(fill);
+    return bar;
+  }
+
+  // 섹션 하나만 바로 풀기
+  function drillSection(key) {
+    $('setup-chapter').value = '';
+    fillSections();
+    $('setup-section').value = key;
+    $('mode-mix').checked = true;
+    updateAvail();
+    startSession(buildSet(filteredPool()), false);
+  }
+
+  function sectionRow(s, showGroup) {
+    const [group, name] = s.key.split(SEP);
+    const li = document.createElement('li');
+    li.className = 'sec-row';
+    li.innerHTML = '<div class="sec-head"><span class="sec-name"></span><span class="sec-acc"></span></div><div class="sec-sub"><span class="sec-meta"></span></div>';
+    li.querySelector('.sec-name').textContent = showGroup ? `${name} · ${group}` : name;
+    li.querySelector('.sec-acc').textContent = pct(s.acc);
+    li.querySelector('.sec-sub').prepend(accBar(s.acc));
+    li.querySelector('.sec-meta').textContent = `${s.total}문제 중 ${s.seen}문제 풀어 봄 · 약한 문제 ${s.st[1] + s.st[2]}`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn ghost sec-go';
+    btn.textContent = '풀기';
+    btn.setAttribute('aria-label', `${name} 섹션 풀기`);
+    btn.addEventListener('click', () => drillSection(s.key));
+    li.querySelector('.sec-head').appendChild(btn);
+    return li;
+  }
+
+  function renderStats() {
+    const subj = state.subject;
+    const qs = allQuestions(subj);
+    const recs = records(subj);
+    const [all] = Adaptive.stats(qs, recs, () => 'all');
+
+    const mastery = $('stats-mastery');
+    mastery.replaceChildren(masteryBar(all));
+    const legend = document.createElement('p');
+    legend.className = 'mastery-legend';
+    const items = [['new', '안 푼 문제', all.st[0]], ['weak', '약함', all.st[1] + all.st[2]], ['mid', '보통', all.st[3] + all.st[4]], ['known', '익힘', all.st[5]]];
+    for (const [cls, label, num] of items) {
+      const it = document.createElement('span');
+      it.className = 'legend-item';
+      it.innerHTML = `<span class="dot seg-${cls}"></span>${label} <b></b>`;
+      it.querySelector('b').textContent = num;
+      legend.appendChild(it);
+    }
+    mastery.appendChild(legend);
+
+    // 수준별 정답률 (경제학처럼 수준 표시가 없는 과목은 숨긴다)
+    const levels = Adaptive.stats(qs.filter((q) => q.lv), recs, (q) => q.lv).sort((a, b) => a.key - b.key);
+    const lv = $('stats-levels');
+    lv.replaceChildren();
+    lv.hidden = !levels.length;
+    for (const s of levels) {
+      const d = document.createElement('div');
+      d.className = 'stat-chip';
+      d.innerHTML = '<span class="chip-label"></span><b></b><span class="chip-sub"></span>';
+      d.querySelector('.chip-label').textContent = LEVEL[s.key];
+      d.querySelector('b').textContent = pct(s.acc);
+      d.querySelector('.chip-sub').textContent = `${s.total}문제`;
+      lv.appendChild(d);
+    }
+
+    const sections = Adaptive.stats(qs, recs, sectionKeys);
+    // 약한 섹션: 3번 이상 풀어 본 섹션 중 정답률 낮은 순 3개
+    const weak = sections.filter((s) => s.n >= 3 && s.acc < 0.8).sort((a, b) => a.acc - b.acc).slice(0, 3);
+    const wb = $('stats-weak');
+    wb.replaceChildren();
+    const wt = document.createElement('p');
+    wt.className = 'weak-title';
+    if (weak.length) {
+      wt.textContent = '약한 섹션';
+      const ul = document.createElement('ul');
+      ul.className = 'sec-list';
+      for (const s of weak) ul.appendChild(sectionRow(s, true));
+      wb.append(wt, ul);
+    } else {
+      wt.className = 'hint';
+      wt.textContent = all.seen
+        ? '아직 정답률이 80% 아래인 섹션이 없어요. 섹션마다 세 번 이상 풀면 약한 섹션을 찾아 드립니다.'
+        : '문제를 풀면 섹션별 정답률과 약한 섹션이 여기에 나타납니다.';
+      wb.appendChild(wt);
+    }
+
+    // 단원(묶음)별 섹션 정답률
+    const box = $('stats-sections');
+    box.replaceChildren();
+    const groups = new Map();
+    for (const s of sections) {
+      const g = s.key.split(SEP)[0];
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(s);
+    }
+    for (const [g, list] of groups) {
+      const det = document.createElement('details');
+      det.className = 'sec-group';
+      const sum = document.createElement('summary');
+      const gs = list.reduce((a, s) => ({ n: a.n + s.n, c: a.c + s.c }), { n: 0, c: 0 });
+      sum.innerHTML = '<span class="g-name"></span><span class="g-acc"></span>';
+      sum.querySelector('.g-name').textContent = g;
+      sum.querySelector('.g-acc').textContent = pct(gs.n ? gs.c / gs.n : null);
+      const ul = document.createElement('ul');
+      ul.className = 'sec-list';
+      for (const s of list) ul.appendChild(sectionRow(s, false));
+      det.append(sum, ul);
+      box.appendChild(det);
+    }
+  }
   $('btn-manage').addEventListener('click', () => show('manage'));
 
   // ---------- 문제 풀이 ----------
@@ -206,10 +433,13 @@
   function renderQuestion() {
     const s = state.session;
     const q = s.queue[s.index];
-    $('quiz-progress').textContent = `${s.index + 1} / ${s.queue.length}` + (s.review ? ' · 복습' : '');
+    $('quiz-progress').textContent = `${s.index + 1} / ${s.queue.length}` + (q._retry ? ' · 다시 풀기' : s.review ? ' · 복습' : '');
     $('quiz-bar').style.width = `${(s.index / s.queue.length) * 100}%`;
     $('quiz-type').textContent = TYPE_LABEL[q.type];
-    $('quiz-chapter').textContent = q.ch;
+    $('quiz-chapter').textContent = q.sec || q.ch;
+    $('quiz-chapter').title = q.ch;
+    $('quiz-level').hidden = !q.lv;
+    $('quiz-level').textContent = q.lv ? LEVEL[q.lv] : '';
     renderQuestionText($('quiz-question'), q);
     $('quiz-given').hidden = !q.given;
     $('quiz-given').textContent = q.given || '';
@@ -240,6 +470,7 @@
 
     // 이전 문제의 정답이 남아 있지 않도록 비운다.
     $('feedback').hidden = true;
+    $('retry-note').hidden = true;
     $('reveal-answer').replaceChildren();
     $('reveal-mine').textContent = '';
     $('reveal-why').textContent = '';
@@ -256,9 +487,19 @@
     const s = state.session;
     const q = s.queue[s.index];
     const correct = grade(q, input);
-    s.results.push({ q, input, correct });
-    markWrong(state.subject, q.id, !correct);
+    finishAttempt(q, input, correct ? 'right' : 'wrong');
     showFeedback(q, input, correct);
+  }
+
+  // 결과를 기록하고, 틀렸으면 같은 세트 뒤쪽에 한 번 더 넣는다(다시 낸 문제는 또 넣지 않는다).
+  function finishAttempt(q, input, outcome) {
+    const s = state.session;
+    const prev = recordResult(q, outcome);
+    const res = { q, input, correct: outcome === 'right', outcome, prev, retry: !!q._retry };
+    if (outcome !== 'right' && !q._retry) res.requeuedAt = Adaptive.requeue(s.queue, s.index);
+    s.results.push(res);
+    $('retry-note').hidden = res.requeuedAt == null;
+    return res;
   }
 
   function showFeedback(q, input, correct) {
@@ -402,14 +643,15 @@
     const answered = q.type === 'shift' ? !skipped : input.trim() !== '';
     const correct = answered && boxes.length > 0 && got === boxes.length;
     const textSkipped = q.type === 'shift' && !skipped && !input.trim();
-    s.results.push({ q, input, correct });
-    markWrong(state.subject, q.id, !correct);
+    // 기준을 모두 충족하면 맞힘, 절반 이상이면 단계 유지, 그 아래는 틀림
+    const outcome = correct ? 'right' : answered && boxes.length && got / boxes.length >= 0.5 ? 'partial' : 'wrong';
+    finishAttempt(q, input, outcome);
 
     for (const b of boxes) b.disabled = true;
     $('feedback').className = 'feedback ' + (correct ? 'ok' : 'bad');
     $('verdict').textContent = (correct
       ? `기준을 모두 충족했어요 (${got}/${boxes.length})`
-      : answered ? `보완이 필요해요 (${got}/${boxes.length}) · 복습 목록에 넣었어요` : '복습 목록에 넣었어요')
+      : answered ? `보완이 필요해요 (${got}/${boxes.length})` : '약한 문제로 표시했어요')
       + (textSkipped ? ' · 서술은 채점하지 않았어요' : '');
     $('btn-confirm').hidden = true;
     $('btn-next').hidden = false;
@@ -437,12 +679,20 @@
       submitAnswer(k.toUpperCase());
     }
   });
+  // 표기만 달라 틀린 경우: 기록을 되돌린 뒤 맞힘으로 다시 기록하고, 다시 내려던 문제도 뺀다.
   $('btn-override').addEventListener('click', () => {
     const s = state.session;
     const last = s.results[s.results.length - 1];
+    restoreRecord(last.q, last.prev);
+    recordResult(last.q, 'right');
     last.correct = true;
-    markWrong(state.subject, last.q.id, false);
+    last.outcome = 'right';
+    if (last.requeuedAt != null) {
+      s.queue.splice(last.requeuedAt, 1);
+      delete last.requeuedAt;
+    }
     showFeedback(last.q, last.input, true);
+    $('retry-note').hidden = true;
   });
   $('btn-next').addEventListener('click', nextQuestion);
   $('btn-quit').addEventListener('click', () => {
@@ -460,16 +710,36 @@
   // ---------- 결과 ----------
   function showResult() {
     const s = state.session;
-    const total = s.results.length;
-    const right = s.results.filter((r) => r.correct).length;
-    const missed = s.results.filter((r) => !r.correct);
+    // 점수는 처음 푼 결과로 매기고, 다시 낸 문제는 따로 센다.
+    const firsts = s.results.filter((r) => !r.retry);
+    const retries = s.results.filter((r) => r.retry);
+    const total = firsts.length;
+    const right = firsts.filter((r) => r.correct).length;
+    const missed = firsts.filter((r) => !r.correct);
 
     show('result');
-    $('result-subject').textContent = BANK[state.subject].title + (s.review ? ' · 오답 복습' : '');
+    $('result-subject').textContent = BANK[state.subject].title + (s.review ? ' · 약한 문제 복습' : '');
     $('result-score').textContent = right;
     $('result-total').textContent = `/ ${total}`;
-    const left = store.wrong[state.subject].length;
-    $('result-note').textContent = left ? `복습할 문제가 ${left}개 남아 있어요.` : '복습할 문제가 없어요.';
+    const left = weakQuestions(state.subject).length;
+    $('result-note').textContent = left ? `약한 문제가 ${left}개 남아 있어요. 다음 세트에 더 자주 나옵니다.` : '약한 문제가 없어요.';
+
+    // 이번 세트에서 익힘 단계가 어떻게 바뀌었는지
+    const recs = records(state.subject);
+    // 처음 풀 때 맞혀 단계가 오른 문제 / 처음 풀 때 틀려 약한 문제가 된 문제
+    let up = 0;
+    for (const r of firsts) {
+      const before = r.prev ? r.prev.st : 0;
+      const after = recs[r.q.id] ? recs[r.q.id].st : 0;
+      if (r.correct && after > before) up++;
+    }
+    const down = missed.length;
+    const facts = $('result-facts');
+    facts.replaceChildren();
+    const fact = (t) => { const li = document.createElement('li'); li.textContent = t; facts.appendChild(li); };
+    if (up) fact(`익힘 단계가 오른 문제 ${up}개`);
+    if (down) fact(`틀려서 약한 문제로 표시된 문제 ${down}개`);
+    if (retries.length) fact(`다시 낸 문제 ${retries.length}개 중 ${retries.filter((r) => r.correct).length}개를 맞혔어요`);
 
     $('btn-retry-wrong').hidden = missed.length === 0;
     $('result-list-label').hidden = missed.length === 0;
@@ -489,7 +759,10 @@
       }
       list.appendChild(li);
     }
-    s.missed = missed.map((r) => r.q);
+    s.missed = missed.map((r) => {
+      const { _retry, ...q } = r.q;
+      return q;
+    });
   }
 
   $('btn-retry-wrong').addEventListener('click', () => {
@@ -660,7 +933,7 @@
       del.addEventListener('click', () => {
         if (del.dataset.armed) {
           store.custom[subj] = store.custom[subj].filter((x) => x.id !== q.id);
-          markWrong(subj, q.id, false);
+          delete store.progress[subj][q.id];
           saveStore();
           renderCustomList();
         } else {
@@ -731,7 +1004,7 @@
 
   $('btn-backup-copy').addEventListener('click', () => {
     const box = $('backup-text');
-    box.value = JSON.stringify({ app: STORE_KEY, ...store });
+    box.value = JSON.stringify({ app: STORE_KEY, v: 2, ...store });
     const fallback = () => {
       box.select();
       setBackupMsg('복사가 막혀 있어요. 칸의 코드가 선택되어 있으니 직접 복사하세요.', 'error');
@@ -773,13 +1046,15 @@
         store.custom[subj].push(item);
         added++;
       }
+      // 학습 기록은 문항마다 더 최근에 푼 쪽을 쓴다. 이전 버전 백업의 ‘틀린 목록’도 받는다.
+      store.progress[subj] = Adaptive.merge(store.progress[subj], data.progress?.[subj]);
       for (const id of data.wrong?.[subj] || []) {
-        if (typeof id === 'string' && !store.wrong[subj].includes(id)) store.wrong[subj].push(id);
+        if (typeof id === 'string' && !store.progress[subj][id]) store.progress[subj][id] = { st: 1, n: 1, c: 0, t: 0 };
       }
     }
     saveStore();
     renderCustomList();
-    setBackupMsg(`복원했어요. 추가 문제 ${added}개를 가져왔고 복습 목록을 합쳤습니다.`, 'ok');
+    setBackupMsg(`복원했어요. 추가 문제 ${added}개를 가져왔고 학습 기록을 합쳤습니다.`, 'ok');
   });
 
   show('home');

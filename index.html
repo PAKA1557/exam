@@ -29,7 +29,7 @@
     <header class="home-head">
       <p class="eyebrow">2026 2학기 중간고사</p>
       <h1>시험 대비 문제풀이</h1>
-      <p class="lede">과목을 고르면 빈칸 채우기, 단답형, O/X, 서술형, 그래프 문제를 풀 수 있습니다. 틀린 문제는 따로 모아 다시 풀 수 있어요.</p>
+      <p class="lede">과목을 고르면 빈칸 채우기, 단답형, O/X, 서술형, 그래프 문제를 풀 수 있습니다. 약한 문제가 더 자주 나오고, 틀린 문제는 같은 세트에서 한 번 더 나옵니다.</p>
     </header>
     <div class="subject-grid" id="subject-grid"></div>
   </section>
@@ -41,6 +41,15 @@
     <p class="meta" id="setup-meta"></p>
 
     <form id="setup-form" class="setup">
+      <fieldset class="field">
+        <legend>출제 방식</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="strategy" id="strategy-adaptive" value="adaptive" checked><span>약한 문제 위주</span></label>
+          <label><input type="radio" name="strategy" id="strategy-random" value="random"><span>골고루 무작위</span></label>
+        </div>
+        <p class="hint" id="strategy-hint">틀린 문제 60%, 안 푼 문제 25%, 익힌 문제 15% 비율로 고릅니다.</p>
+      </fieldset>
+
       <fieldset class="field">
         <legend>문제 형식</legend>
         <div class="seg" role="radiogroup">
@@ -57,6 +66,10 @@
         <div class="field">
           <label for="setup-chapter">범위</label>
           <select id="setup-chapter"></select>
+        </div>
+        <div class="field">
+          <label for="setup-section">섹션</label>
+          <select id="setup-section"></select>
         </div>
         <div class="field">
           <label for="setup-count">문항 수</label>
@@ -76,6 +89,14 @@
       </div>
     </form>
 
+    <section class="stats" id="stats" aria-labelledby="stats-title">
+      <h3 class="section-label" id="stats-title">나의 학습 현황</h3>
+      <div class="mastery" id="stats-mastery"></div>
+      <div class="stat-row" id="stats-levels"></div>
+      <div class="weak-box" id="stats-weak"></div>
+      <div id="stats-sections"></div>
+    </section>
+
     <button type="button" class="link-btn" id="btn-manage">문제 직접 추가하기 →</button>
   </section>
 
@@ -91,6 +112,7 @@
       <div class="card-tags">
         <span class="tag" id="quiz-type"></span>
         <span class="tag muted" id="quiz-chapter"></span>
+        <span class="tag muted" id="quiz-level" hidden></span>
       </div>
       <p class="question" id="quiz-question"></p>
       <p class="given" id="quiz-given" hidden></p>
@@ -173,6 +195,7 @@
       <!-- 확인을 누르기 전까지 정답은 DOM에 들어가지 않는다 -->
       <div class="feedback" id="feedback" hidden>
         <p class="verdict" id="verdict"></p>
+        <p class="retry-note" id="retry-note" hidden>기억하도록 이 문제를 몇 문제 뒤에 한 번 더 낼게요.</p>
 
         <div class="essay-review" id="essay-review" hidden>
           <div class="essay-block" id="essay-mine-block">
@@ -214,6 +237,7 @@
     <p class="eyebrow" id="result-subject"></p>
     <h2 class="score"><span id="result-score"></span><small id="result-total"></small></h2>
     <p class="meta" id="result-note"></p>
+    <ul class="result-facts" id="result-facts"></ul>
     <div class="actions">
       <button type="button" class="btn primary" id="btn-retry-wrong">이번에 틀린 문제 다시 풀기</button>
       <button type="button" class="btn" data-go="setup">설정으로 돌아가기</button>
@@ -290,7 +314,7 @@
 
     <h3 class="section-label">다른 기기로 옮기기</h3>
     <div class="setup">
-      <p class="meta">기록은 이 브라우저에만 저장됩니다. 이 기기에서 백업 코드를 복사해 다른 기기의 같은 칸에 붙여넣고 복원을 누르세요. 두 과목의 추가 문제와 복습 목록이 모두 들어 있고, 복원하면 기존 기록에 합쳐집니다.</p>
+      <p class="meta">기록은 이 브라우저에만 저장됩니다. 이 기기에서 백업 코드를 복사해 다른 기기의 같은 칸에 붙여넣고 복원을 누르세요. 모든 과목의 추가 문제와 학습 기록(익힘 단계, 정답률)이 들어 있고, 복원하면 문항마다 더 최근에 푼 기록으로 합쳐집니다.</p>
       <div class="field">
         <label for="backup-text">백업 코드</label>
         <textarea id="backup-text" rows="4" spellcheck="false"></textarea>
@@ -311,6 +335,7 @@
 <script src="data/writing.js"></script>
 <script src="data/economics.js"></script>
 <script src="econ.js"></script>
+<script src="adaptive.js"></script>
 <script src="app.js"></script>
 <!-- standalone:start -->
 <script>

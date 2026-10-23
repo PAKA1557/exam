@@ -9,6 +9,7 @@ require(path.join(__dirname, '..', 'data', 'insurance.js'));
 require(path.join(__dirname, '..', 'data', 'writing.js'));
 require(path.join(__dirname, '..', 'data', 'economics.js'));
 const EconGraph = require(path.join(__dirname, '..', 'econ.js'));
+const Adaptive = require(path.join(__dirname, '..', 'adaptive.js'));
 const BANK = window.QUIZ_BANK;
 
 let failures = 0;
@@ -27,6 +28,11 @@ for (const [subj, { title, questions }] of Object.entries(BANK)) {
       assert.ok(['blank', 'short', 'ox', 'essay', 'shift'].includes(q.type), 'type 은 blank/short/ox/essay/shift');
       assert.ok(q.ch && q.q, '단원과 문제 필요');
       assert.ok(!/\{[XYZ]/.test(q.q + (q.model || '')), '채우지 않은 이름 자리표시자');
+      // 경제학 외 과목은 섹션과 지식 수준(1 기억, 2 이해, 3 적용)이 있어야 섹션별 정답률을 낼 수 있다.
+      if (subj !== 'economics') {
+        assert.ok(typeof q.sec === 'string' && q.sec, '섹션(sec) 필요');
+        assert.ok([1, 2, 3].includes(q.lv), '수준(lv)은 1·2·3');
+      }
       if (q.type === 'shift') {
         const x = q.expected;
         assert.ok(x && ['right', 'left', 'none'].includes(x.d) && ['right', 'left', 'none'].includes(x.s), 'expected 곡선 방향');
@@ -91,6 +97,69 @@ check('조사 처리', () => {
   assert.ok(!/「효민원」가|「멜란지」이 |「해초빵」를|「별사탕」를/.test(qs));
 });
 check('대소문자 무시', () => assert.ok(grade({ a: ['COFIX'] }, 'cofix')));
+
+// ---------- 적응형 출제 ----------
+check('익힘 단계 규칙', () => {
+  const at = (st, outcome) => Adaptive.update({ st, n: 1, c: 0, t: 0 }, outcome, 1).st;
+  assert.strictEqual(Adaptive.update(undefined, 'right', 1).st, 3, '처음 맞히면 보통(3)');
+  assert.strictEqual(Adaptive.update(undefined, 'wrong', 1).st, 1, '처음 틀리면 1');
+  assert.strictEqual(at(4, 'right'), 5);
+  assert.strictEqual(at(5, 'right'), 5, '최대 5');
+  assert.strictEqual(at(5, 'wrong'), 1, '익힌 문제도 틀리면 1로');
+  assert.strictEqual(at(4, 'partial'), 4, '서술형 절반 이상은 유지');
+  assert.strictEqual(at(1, 'partial'), 2);
+});
+check('기록 합치기는 더 최근 기록', () => {
+  const m = Adaptive.merge({ a: { st: 5, n: 3, c: 3, t: 10 } }, { a: { st: 1, n: 4, c: 3, t: 20 }, b: { st: 2, n: 1, c: 0, t: 5 } });
+  assert.strictEqual(m.a.st, 1);
+  assert.strictEqual(m.b.st, 2);
+});
+check('같은 세트 재출제는 3~5문제 뒤', () => {
+  for (let i = 0; i < 20; i++) {
+    const q = Array.from({ length: 10 }, (_, k) => ({ id: 'q' + k }));
+    const at = Adaptive.requeue(q, 2);
+    assert.ok(at >= 6 && at <= 8 && q[at].id === 'q2' && q[at]._retry && q.length === 11);
+  }
+  const short = [{ id: 'a' }, { id: 'b' }];
+  assert.strictEqual(Adaptive.requeue(short, 1), 2, '세트 끝을 넘지 않는다');
+});
+
+// 가상 학습자: 어려운 문제(정답 확률 30%) 20개, 쉬운 문제(90%) 40개를 10문제씩 40세트 푼다.
+function simulate(strategy) {
+  let seed = 12345;
+  const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const qs = Array.from({ length: 60 }, (_, i) => ({ id: 'q' + i, hard: i < 20, sec: i < 20 ? '어려움' : '쉬움' }));
+  const recs = {};
+  const seen = Object.fromEntries(qs.map((q) => [q.id, 0]));
+  let now = 0;
+  for (let set = 0; set < 40; set++) {
+    now += 86400000;
+    const picked = strategy === 'adaptive'
+      ? Adaptive.pick(qs, recs, 10, { rng, now, tagsOf: (q) => [q.sec] })
+      : qs.slice().sort(() => rng() - 0.5).slice(0, 10);
+    assert.strictEqual(new Set(picked.map((q) => q.id)).size, 10, '한 세트에 같은 문제 중복 없음');
+    for (const q of picked) {
+      seen[q.id]++;
+      recs[q.id] = Adaptive.update(recs[q.id], rng() < (q.hard ? 0.3 : 0.9) ? 'right' : 'wrong', now);
+    }
+  }
+  const avg = (f) => { const xs = qs.filter(f).map((q) => seen[q.id]); return xs.reduce((a, b) => a + b, 0) / xs.length; };
+  return { hard: avg((q) => q.hard), easy: avg((q) => !q.hard), unseen: qs.filter((q) => !seen[q.id]).length };
+}
+check('적응형: 어려운 문제가 쉬운 문제보다 훨씬 자주 나온다', () => {
+  const a = simulate('adaptive'), r = simulate('random');
+  assert.ok(a.hard > a.easy * 2, `적응형 어려움 ${a.hard.toFixed(1)}회 / 쉬움 ${a.easy.toFixed(1)}회`);
+  assert.ok(r.hard < r.easy * 1.5, '무작위는 차이가 작아야 비교가 된다');
+  assert.strictEqual(a.unseen, 0, '모든 문제가 적어도 한 번은 나온다');
+});
+check('적응형: 익힌 문제도 가끔 다시 나온다', () => {
+  const qs = Array.from({ length: 30 }, (_, i) => ({ id: 'k' + i }));
+  const recs = Object.fromEntries(qs.map((q) => [q.id, { st: 5, n: 5, c: 5, t: 0 }]));
+  recs.k0 = { st: 1, n: 1, c: 0, t: 0 };
+  const set = Adaptive.pick(qs, recs, 10, { now: 86400000 * 3 });
+  assert.strictEqual(set.length, 10);
+  assert.ok(set.some((q) => q.id === 'k0'), '약한 문제는 반드시 포함');
+});
 
 const counts = Object.entries(BANK).map(([s, b]) => {
   const ox = b.questions.filter((q) => q.type === 'ox').length;
