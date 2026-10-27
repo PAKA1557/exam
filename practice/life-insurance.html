@@ -1,0 +1,394 @@
+<title>생명보험 중간고사 연습</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 한 줄 시험지(최대 720px). 섹션 머리표 → 문항 카드. 정답은 버튼을 눌러야 그려진다. */
+:root {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --fg: #181b26;
+  --muted: #5c6274;
+  --line: #dadde6;
+  --accent: #3a4bb0;
+  --accent-soft: #e6e9f7;
+  --ok: #1f6f3f;
+  --ok-soft: #e3f1e7;
+  --bad: #b03a2e;
+  --bad-soft: #f7e6e3;
+  --warn: #8a5a00;
+  --warn-soft: #f6ecd6;
+  --font-display: 'Hahmlet', 'Noto Serif KR', serif;
+  --font-body: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12141b; --surface: #1b1e28; --fg: #e7e9f0; --muted: #9ba1b3; --line: #2f3342;
+    --accent: #9aa8f2; --accent-soft: #22274a; --ok: #6fcf93; --ok-soft: #1b3325;
+    --bad: #f08a7c; --bad-soft: #3a211d; --warn: #e2c070; --warn-soft: #362d17;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12141b; --surface: #1b1e28; --fg: #e7e9f0; --muted: #9ba1b3; --line: #2f3342;
+  --accent: #9aa8f2; --accent-soft: #22274a; --ok: #6fcf93; --ok-soft: #1b3325;
+  --bad: #f08a7c; --bad-soft: #3a211d; --warn: #e2c070; --warn-soft: #362d17;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.65; word-break: keep-all; }
+.page {
+  max-width: 720px; margin: 0 auto;
+  padding-block: 36px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+h1, h2 { margin: 0; font-family: var(--font-display); text-wrap: balance; }
+h1 { font-size: 2rem; line-height: 1.25; }
+h2 { font-size: 1.375rem; color: var(--accent); }
+p { margin: 0; }
+.eyebrow { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
+.head { display: flex; flex-direction: column; gap: 10px; }
+.lede { color: var(--muted); }
+.rules { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.9375rem; display: flex; flex-direction: column; gap: 2px; }
+
+.score {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  font-size: 0.9375rem;
+}
+.score b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.score .sep { color: var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+
+section { display: flex; flex-direction: column; gap: 14px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sec-head .meta { color: var(--muted); font-size: 0.875rem; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.q-top { display: flex; gap: 10px; align-items: flex-start; }
+.num { flex: none; font-family: var(--font-mono); font-size: 0.875rem; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 1px 8px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.q-text { font-size: 1.0625rem; font-weight: 500; min-width: 0; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 0.75rem; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 2px 9px; }
+.tag.warn { color: var(--warn); background: var(--warn-soft); }
+
+.choices { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--bg); }
+.choice input { margin: 4px 0 0; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+.choice span { min-width: 0; }
+.choice.right { border-color: var(--ok); background: var(--ok-soft); }
+.choice.wrong { border-color: var(--bad); background: var(--bad-soft); }
+
+.ox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ox label { position: relative; }
+.ox input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.ox span { display: flex; align-items: center; justify-content: center; min-height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
+.ox input:checked + span { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.ox input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.7; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { font: inherit; font-weight: 600; font-size: 0.9375rem; min-height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--surface); cursor: pointer; touch-action: manipulation; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible, textarea:focus-visible, .choice:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.answer { border-top: 1px dashed var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.verdict { font-weight: 700; }
+.verdict.ok { color: var(--ok); }
+.verdict.bad { color: var(--bad); }
+.why { color: var(--fg); }
+.model { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.model li { display: grid; grid-template-columns: 4.2em 1fr; gap: 8px; }
+.model .step { font-size: 0.8125rem; font-weight: 600; color: var(--accent); padding-top: 3px; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; }
+.keys span { font-size: 0.8125rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; }
+.note { font-size: 0.875rem; color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; }
+.hint { font-size: 0.875rem; color: var(--muted); }
+
+.foot { color: var(--muted); font-size: 0.875rem; display: flex; flex-direction: column; gap: 6px; }
+
+@media (max-width: 480px) {
+  h1 { font-size: 1.625rem; }
+  .card { padding: 16px; }
+  .model li { grid-template-columns: 1fr; gap: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<main class="page">
+  <header class="head">
+    <p class="eyebrow">생명보험이란 무엇인가 2026 · 제1편 1~3장</p>
+    <h1>생명보험 중간고사 연습</h1>
+    <p class="lede">서술형 8문항, 사지선다 15문항, OX 10문항입니다. 답을 고르거나 쓴 뒤 버튼을 눌러야 정답과 해설이 펼쳐집니다.</p>
+    <ul class="rules">
+      <li>서술형 모범답안은 정의 → 이유(취지) → 의의·효과의 3문장 구조입니다.</li>
+      <li>날짜·기간 숫자, 설립·도입 연도, 통계 수치는 묻지 않습니다. 청약철회는 가능·불가능만 묻습니다.</li>
+    </ul>
+  </header>
+
+  <div class="score" role="status" aria-live="polite">
+    <span>사지선다 <b id="s-mcq">0</b> / 15</span><span class="sep" aria-hidden="true">|</span>
+    <span>OX <b id="s-ox">0</b> / 10</span><span class="sep" aria-hidden="true">|</span>
+    <span>서술형 확인 <b id="s-essay">0</b> / 8</span>
+    <button type="button" class="btn ghost" id="btn-reset" style="margin-left:auto;min-height:36px">처음부터</button>
+  </div>
+
+  <section aria-labelledby="h-essay">
+    <div class="sec-head"><h2 id="h-essay">Ⅰ. 서술형</h2><span class="meta">답안을 쓴 뒤 모범답안과 비교하세요</span></div>
+    <div id="essay-list"></div>
+  </section>
+
+  <section aria-labelledby="h-mcq">
+    <div class="sec-head"><h2 id="h-mcq">Ⅱ. 사지선다</h2><span class="meta">하나를 고르고 확인하세요</span></div>
+    <div id="mcq-list"></div>
+  </section>
+
+  <section aria-labelledby="h-ox">
+    <div class="sec-head"><h2 id="h-ox">Ⅲ. OX</h2><span class="meta">O 또는 X를 고르고 확인하세요</span></div>
+    <div id="ox-list"></div>
+  </section>
+
+  <footer class="foot">
+    <p>근거 자료: Drive 「1편 요약 정리」(제1편 본문 9~138쪽 요약)와 「금융보험의 이해 핵심정리」.</p>
+    <p>이번에 뺀 범위: 금융권 윤리헌장 10개 항목, 언더라이터 업무수칙 5개, 보험설계사 7대 금지행위, 보험사기 구성요건(객관적 4·주관적 2). 요약 자료에 세부 항목이 없어 교재 원문을 확인한 뒤 추가합니다.</p>
+  </footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 문제 데이터 ----------
+  // 서술형 model: [정의, 이유(취지), 의의·효과]. check: 답안에 들어가야 할 핵심어. note: 출처 주의 문구.
+  const ESSAYS = [
+    {
+      ch: '1장', q: '생명보험자산 운용원칙 4가지(안정성·유동성·수익성·공익성)의 의미를 서술하시오.',
+      model: [
+        '안정성은 원금 손실 위험이 적도록 안전하게 운용하는 것, 유동성은 보험금·해약환급금 지급에 대비해 언제든 현금화할 수 있게 운용하는 것, 수익성은 보험료를 적용이율로 미리 할인했으므로 적용이율 이상의 수익을 내도록 운용하는 것, 공익성은 다수 계약자의 자금이라는 점을 고려해 사회와 국가경제에 이바지하도록 운용하는 것이다.',
+        '생명보험자산은 장기자금이고, 반드시 보험금·해약환급금으로 돌려줘야 하는 신탁재산적 성격과 다수 계약자의 소액자금이 모인 공공적 성격을 가지므로, 보험업법 제104조는 보험회사가 선량한 관리자의 주의로 이 원칙에 따라 운용하도록 정하고 있다.',
+        '이 원칙을 지키면 계약자에게 약속한 보험금 지급능력을 확보하는 동시에, 장기·안정적인 자금을 기간산업 등에 공급해 국가경제 발전에도 기여한다.',
+      ],
+      check: ['원금·안전', '현금화·지급 대비', '적용이율 이상', '사회·국가경제', '신탁재산적·공공적 성격', '선량한 관리자의 주의'],
+    },
+    {
+      ch: '3장', q: '보험인 윤리강령 5가지(공공성·공신력 제고·성실봉사·기술개발·준법)의 의미를 서술하시오.',
+      model: [
+        '보험인 윤리강령은 보험인이 지켜야 할 행동 기준으로, 보험사업이 사회 전체의 생활 안정과 관련된 공공적 사업임을 자각하는 공공성, 보험에 대한 사회적 신뢰를 높이는 공신력 제고, 고객에게 성실하게 봉사하는 성실·봉사, 보험 기술과 상품·서비스를 발전시키는 기술개발, 법규를 지키는 준법의 5가지로 이루어진다.',
+        '보험은 다수 계약자의 자금으로 장기간 약속을 지켜야 하는 사업이어서, 판매자와 회사의 윤리가 무너지면 계약자 피해와 업계 전체의 불신으로 이어지므로 법규 준수를 최소 기준으로 삼는 자율 규범을 마련한 것이다.',
+        '윤리강령을 실천하면 완전판매와 고객 신뢰가 확보되어 보험산업 전체의 이미지와 지속 가능성이 높아진다.',
+      ],
+      check: ['공공적 사업 자각', '사회적 신뢰', '고객에게 성실·봉사', '기술·상품 발전', '법규 준수', '완전판매·신뢰'],
+      note: '요약 자료에는 5가지 항목 이름만 있어, 각 항목의 뜻은 이름을 바탕으로 풀어 썼습니다. 교재 본문의 표현과 대조해 보세요.',
+    },
+    {
+      ch: '1장', q: '3층 보장론의 내용을 서술하고, 사회보험과 생명보험의 관계를 서술하시오.',
+      model: [
+        '3층 보장론은 국가가 최저 수준의 생활을 보장하는 사회보장(예: 국민연금), 기업이 종업원의 복리후생과 퇴직 후 생활을 보장하는 기업보장(예: 퇴직연금), 개인이 만족할 수준까지 스스로 준비하는 개인보장(예: 개인연금보험)이 조화를 이루어야 완전한 복지사회가 된다는 이론이다.',
+        '사회보장은 최저 수준만 보장하므로 그 위의 필요는 기업보장과 개인보장이 채워야 하며, 생명보험은 이 과정에서 사회보장제도를 보완하는 역할을 맡는다.',
+        '사회보험과 생명보험은 사회보험이 미치지 못하는 부분을 생명보험이 채우는 상호보완 관계이면서 같은 보장 수요를 두고 경쟁하는 양면성을 가지며, 둘이 균형을 이룰 때 국민의 생활 보장이 두터워진다.',
+      ],
+      check: ['사회보장(국가·최저수준)', '기업보장(퇴직연금)', '개인보장(개인연금)', '사회보장제도 보완', '상호보완과 경쟁의 양면성'],
+    },
+    {
+      ch: '1장', q: '사회보험과 민영보험의 차이를 가입형태, 급여, 보장수준, 운영주체, 운영취지를 기준으로 서술하시오.',
+      model: [
+        '사회보험은 국가가 법률로 가입을 의무화해 국민의 최저생계와 의료를 보장하는 공적 보험이고, 민영보험은 개인이 자유롭게 선택해 계약으로 보장 내용을 정하는 사적 보험이다.',
+        '사회보험은 의무가입이고 급여를 법률로 정하며 최저생계·의료 수준을 정부가 독점 운영하는 반면, 민영보험은 임의가입이고 급여를 계약으로 정하며 보험료 부담 수준에 따라 보장하고 민간이 자유경쟁으로 운영한다.',
+        '사회보험은 사회적 형평성을, 민영보험은 개인별 적정성을 추구하므로, 사회보험이 기본 생활을 받치고 민영보험이 개인의 필요에 맞춰 그 위를 채워 서로 보완한다.',
+      ],
+      check: ['의무 / 임의', '법률 / 계약', '최저생계·의료 / 보험료 부담수준', '정부 독점 / 민간 자유경쟁', '사회적 형평성 / 개인별 적정성'],
+    },
+    {
+      ch: '1장', q: '사회보장제도의 3구분(사회보험·공공부조·사회서비스)을 서술하시오.',
+      model: [
+        '사회보장제도는 건강보험·국민연금·산재보험·고용보험의 4대 보험으로 대표되는 사회보험, 기초생활보장·의료급여 같은 공공부조, 그리고 사회서비스로 나뉜다.',
+        '사회보험은 보험료를 내는 가입자를 보험 방식으로 보호하고, 공공부조는 스스로 생활을 유지하기 어려운 계층을 국가가 직접 지원하며, 사회서비스는 돌봄·복지 서비스로 삶의 질을 지원하는 등 대상과 방식이 다르기 때문에 구분한다.',
+        '세 제도가 함께 국민의 최저생활을 지키는 사회안전망을 이루고, 그 위의 보장은 기업보장과 개인보장(생명보험)이 보완한다.',
+      ],
+      check: ['사회보험 = 4대 보험', '공공부조 = 기초생활보장·의료급여', '사회서비스', '대상·방식의 차이', '사회안전망과 생명보험의 보완'],
+    },
+    {
+      ch: '3장', q: '보험영업에서 정보불균형을 해소하기 위한 원칙(신의성실, 적합한 상품 권유, 부당영업행위 금지)의 의미를 서술하시오.',
+      model: [
+        '정보불균형 해소 원칙은 고객의 이익을 우선해 정직하게 영업하는 신의성실, 고객의 연령·납입보험료·가입목적 등에 맞는 상품만 권하는 적합한 상품 권유, 구매 강요·승환계약 유도·고지 방해 같은 부당영업행위 금지로 이루어진다.',
+        '보험상품은 구조가 복잡해 회사와 설계사가 소비자보다 훨씬 많은 정보를 갖기 때문에, 이 격차를 이용한 불완전판매를 막으려고 보험회사 영업행위 윤리준칙이 첫째 내용으로 정했다.',
+        '이 원칙을 지키면 소비자가 필요에 맞는 상품을 제대로 알고 가입하는 완전판매가 이루어져 분쟁과 민원이 줄고 보험산업의 신뢰가 높아진다.',
+      ],
+      check: ['고객 이익 우선·정직', '고객에게 맞는 상품', '구매 강요·승환계약 등 금지', '정보 격차·불완전판매', '완전판매·신뢰'],
+    },
+    {
+      ch: '2장', q: '대수의 법칙과 수지상등의 원칙의 의미를 서술하시오.',
+      model: [
+        '대수의 법칙은 관찰 횟수를 늘릴수록 어떤 사건의 발생확률이 일정한 값에 가까워지는 법칙이고, 수지상등의 원칙은 계약자가 내는 보험료 총액이 보험회사가 지급하는 보험금과 비용의 총액과 같아지도록 보험료를 정하는 원칙이다.',
+        '개인에게는 우연한 사고도 많은 사람을 모으면 대수의 법칙에 따라 사망률 같은 확률을 예측할 수 있고, 이 확률을 바탕으로 수입과 지출이 맞도록 보험료를 계산해야 보험단체가 유지된다.',
+        '두 원리 덕분에 보험료를 과학적으로 산출할 수 있으며, 가입자가 많을수록 예측이 정확해져 보험단체가 안정된다.',
+      ],
+      check: ['관찰 횟수↑ → 확률이 일정치에 수렴', '보험료 총액 = 보험금+비용 총액', '확률 예측 → 보험료 산출', '가입자 많을수록 보험단체 안정'],
+    },
+    {
+      ch: '2장', q: '생명보험의 보험금 지급사유(중도·만기·사망·장해·입원)를 서술하시오.',
+      model: [
+        '보험금 지급사유에는 보험기간 중 약정한 시점에 살아 있을 때 지급하는 중도보험금, 보험기간이 끝날 때까지 살아 있을 때 지급하는 만기보험금, 피보험자가 사망했을 때의 사망보험금, 재해나 질병으로 장해 상태가 되었을 때의 장해보험금, 입원했을 때의 입원보험금이 있다.',
+        '생명보험은 사망·장해·입원처럼 소득이 끊기거나 비용이 생기는 사고에 대비하는 보장기능과 생존 시 목돈을 마련해 주는 저축기능을 함께 갖기 때문에, 지급사유도 생존과 사고 양쪽에 걸쳐 정해진다.',
+        '지급사유를 약관에 명확히 정해 두면 어떤 경우에 보험금을 받는지 분명해져 분쟁이 줄고, 계약자는 생애 위험에 맞춰 보장을 설계할 수 있다.',
+      ],
+      check: ['중도(기간 중 생존)', '만기(만기까지 생존)', '사망', '장해', '입원', '보장기능 + 저축기능'],
+      note: '요약 자료에는 지급사유별 정의가 따로 없어, 일반적인 약관 정의로 썼습니다. 교재 본문과 대조해 보세요.',
+    },
+  ];
+
+  // 사지선다: a = 정답 보기 번호(0부터)
+  const MCQ = [
+    { ch: '2장', q: '보험계약 관계자에 대한 설명으로 옳지 않은 것은?', o: ['보험계약자는 보험료 납입의무를 진다.', '타인의 사망을 보험사고로 하는 계약은 그 타인(피보험자)의 서면동의가 필요하다.', '보험수익자는 한 명만 지정할 수 있다.', '보험회사는 금융위원회의 허가를 받아야 한다.'], a: 2, why: '보험수익자는 수와 자격에 제한이 없다.' },
+    { ch: '2장', q: '보험계약의 성립과 책임개시에 대한 설명으로 옳지 않은 것은?', o: ['보험계약은 청약과 승낙으로 성립한다.', '보험계약은 별도의 형식이 필요 없는 불요식·낙성계약이다.', '보험계약이 성립하면 그 즉시 보장이 시작된다.', '보장개시일은 제1회 보험료를 받은 날이다.'], a: 2, why: '계약 성립과 책임개시는 다르다. 보장은 제1회 보험료를 받은 때부터 시작된다.' },
+    { ch: '2장', q: '생명보험약관의 해석 원칙으로 옳지 않은 것은?', o: ['약관은 신의성실의 원칙에 따라 공정하게 해석한다.', '뜻이 불명확한 조항은 계약자에게 유리하게 해석한다.', '계약자에게 불리한 내용은 확대해석하지 않는다.', '뜻이 불명확한 조항은 약관을 작성한 보험회사의 의도대로 해석한다.'], a: 3, why: '불명확하면 계약자에게 유리하게 해석한다(작성자 불이익 원칙). 또 표준약관보다 소비자에게 불리하게 약관을 만들 수 없다.' },
+    { ch: '2장', q: '청약철회를 할 수 없는 경우가 아닌 것은?', o: ['전문금융소비자가 체결한 계약', '건강진단을 지원받는 계약', '법률상 가입이 의무인 보험', '일반금융소비자가 가입한 일반 종신보험'], a: 3, why: '일반금융소비자는 원칙적으로 청약을 철회할 수 있다. 전문금융소비자, 보험기간이 짧은 계약, 건강진단 지원 계약, 의무보험, 제3자 동의가 필요한 보증보험은 철회할 수 없다.' },
+    { ch: '2장', q: '보험계약이 무효가 되는 경우가 아닌 것은?', o: ['타인의 사망보험에서 피보험자의 서면동의가 없는 계약', '만 15세 미만자를 피보험자로 한 사망보험', '계약 나이의 범위를 벗어난 계약', '의사능력이 있는 심신박약자가 서면동의한 사망보험'], a: 3, why: '심신박약자의 사망보험은 원칙적으로 무효지만, 의사능력이 있는 심신박약자가 동의한 경우는 유효하다.' },
+    { ch: '2장', q: '승낙 전 보험사고에 대한 설명으로 옳은 것은?', o: ['회사가 승낙하기 전에 생긴 사고는 어떤 경우에도 보장하지 않는다.', '승낙 전 사고도 원칙적으로 보장하되, 계약 전 알릴 의무를 위반한 경우 등은 예외로 한다.', '진단계약은 진단을 받기 전이라도 질병 사고까지 모두 보장한다.', '승낙 전 사고는 보험료 납입과 상관없이 보험수익자가 원하면 보장한다.'], a: 1, why: '승낙 전 보험사고도 원칙적으로 보장한다. 알릴 의무 위반, 진단을 받지 않은 경우 등은 예외다. 진단계약에서 진단 전에는 재해만 예외로 보장한다.' },
+    { ch: '2장', q: '계약 전 알릴 의무(고지의무)에 대한 설명으로 옳지 않은 것은?', o: ['상법상 고지의무와 같은 의무다.', '청약서의 질문사항은 중요한 사항으로 추정된다.', '고의나 중대한 과실로 위반하면 회사는 계약을 해지하거나 보장을 제한할 수 있다.', '설계사가 고지를 방해한 경우에도 회사는 고지의무 위반을 이유로 계약을 해지할 수 있다.'], a: 3, why: '설계사가 고지를 방해했거나 회사가 위반 사실을 알았던 경우 등에는 해지할 수 없다. 고지의무의 취지는 위험을 정확히 측정해 역선택을 막는 데 있다.' },
+    { ch: '2장', q: '언더라이팅 고려대상 가운데 환경적 요소가 아닌 것은?', o: ['직업', '운전', '취미', '병력'], a: 3, why: '병력은 연령·체격과 함께 신체적 요소다. 환경적 요소는 직업·운전·흡연·취미다.' },
+    { ch: '2장', q: '언더라이팅 고려대상 4요소가 아닌 것은?', o: ['환경적 요소', '신체적 요소', '도덕적 요소', '정치적 요소'], a: 3, why: '4요소는 환경적·신체적·도덕적·재정적 요소다. 재정적 요소는 소득에 비해 보장이 적정한지를 본다.' },
+    { ch: '2장', q: '언더라이팅 단계와 주체의 연결이 옳지 않은 것은?', o: ['1차 선택 — 모집조직(보험설계사)', '2차 선택 — 의적 진단', '3차 선택 — 계약적부 확인', '4차 선택 — 계약적부 확인'], a: 2, why: '3차 선택은 언더라이터가 인수 여부와 조건을 정하는 단계다. 계약적부 확인은 4차 선택이다.' },
+    { ch: '3장', q: '보험 판매에서 부당한 영업행위가 아닌 것은?', o: ['고객에게 상품 구매를 강요하는 것', '기존 계약을 해지하고 새 계약으로 갈아타게 하는 승환계약 유도', '고객 대신 청약서에 자필서명을 해 주는 것', '회사가 승인한 안내자료로 상품을 설명하는 것'], a: 3, why: '승인된 안내자료 사용은 설계사가 지켜야 할 의무다. 미승인 안내자료 사용, 고지 방해, 허위·작성계약도 부당 영업행위다.' },
+    { ch: '3장', q: '상품을 추천할 때 고객 적합성을 판단하는 기준이 아닌 것은?', o: ['고객의 연령', '납입보험료 수준', '가입목적', '설계사가 받는 판매수당'], a: 3, why: '적합성 판단 기준은 고객연령·납입보험료·가입목적·고객적합성·투자기간처럼 고객 쪽 사정이다. 판매자의 수당은 기준이 될 수 없다.' },
+    { ch: '3장', q: '경성사기(Hard Fraud)에 해당하는 것은?', o: ['우연히 난 사고의 피해 금액을 부풀려 청구했다.', '가입할 때 지병을 알리지 않았다.', '보험금을 노리고 계획적으로 교통사고를 일으켰다.', '경미한 부상인데 치료 기간을 늘려 청구했다.'], a: 2, why: '경성사기는 계획적으로 사고를 조작·유발하는 것이다. 우연한 사고의 피해 과장이나 고지의무 위반은 연성사기(Soft Fraud)다.' },
+    { ch: '3장', q: '보험사기가 의심되는 계약의 특징이 아닌 것은?', o: ['짧은 기간에 고액·다수의 계약을 맺는다.', '연고가 없는데 스스로 찾아와 가입한다.', '소득에 비해 부자연스럽게 많은 보험료를 낸다.', '소득 수준에 맞는 보장을 상담 후 가입한다.'], a: 3, why: '보험사기 계약은 고액·다수 계약, 비연고·자발적 계약, 소득 대비 부자연스러운 계약이라는 특징이 있다.' },
+    { ch: '3장', q: '역선택과 도덕적 해이에 대한 설명으로 옳지 않은 것은?', o: ['둘 다 정보의 비대칭에서 비롯된다.', '역선택은 계약 전에 병력을 숨기고 가입하는 식으로 나타난다.', '도덕적 해이는 계약 후 부주의나 고의로 위험을 높이는 것이다.', '의사나 정비업자가 일으키는 도덕적 해이는 내적 도덕적 해이다.'], a: 3, why: '계약자 본인이 일으키면 내적, 의사·정비업자 등 제3자가 일으키면 외적 도덕적 해이다.' },
+  ];
+
+  // OX: a = 'O' 또는 'X'
+  const OX = [
+    { ch: '1장', q: '사회보험과 민영보험은 서로 보완하는 관계일 뿐 경쟁하는 관계는 아니다.', a: 'X', why: '사회보험과 민영보험은 상호보완과 경쟁의 양면성을 가진다.' },
+    { ch: '2장', q: '타인의 사망을 보험사고로 하는 계약에서 그 타인의 서면동의가 없으면 계약은 무효다.', a: 'O', why: '상법 제731조에 따라 피보험자의 서면동의가 필수이며, 없으면 무효다.' },
+    { ch: '2장', q: '보험계약은 보험증권을 발급해야 성립하는 요식계약이다.', a: 'X', why: '청약과 승낙만으로 성립하는 불요식·낙성계약이다.' },
+    { ch: '2장', q: '보험회사는 표준약관보다 소비자에게 불리한 내용으로 약관을 만들 수 없다.', a: 'O' },
+    { ch: '2장', q: '전문금융소비자도 일반금융소비자와 똑같이 청약을 철회할 수 있다.', a: 'X', why: '전문금융소비자는 청약을 철회할 수 없다.' },
+    { ch: '2장', q: '보험수익자를 바꿀 때는 계약자를 바꿀 때와 달리 보험회사의 승낙이 필요 없다.', a: 'O', why: '계약자 변경은 회사 승낙이 필요하고, 수익자 변경은 승낙이 필요 없다. 단, 피보험자의 서면동의와 회사 통지가 필요하다.' },
+    { ch: '3장', q: '보험사기는 보험범죄보다 좁은 개념이다.', a: 'X', why: '보험사기는 가입 시의 악의성까지 포함하므로 보험범죄보다 넓은 개념이다.' },
+    { ch: '2장', q: '계약 전 알릴 의무를 위반했더라도 설계사가 고지를 방해했다면 보험회사는 계약을 해지할 수 없다.', a: 'O' },
+    { ch: '2장', q: '언더라이팅의 재정적 고려대상은 피보험자의 소득에 비해 보장 규모가 적정한지다.', a: 'O' },
+    { ch: '1장', q: '초고령사회는 고령화사회보다 전체 인구 중 고령인구 비율 기준이 더 높다.', a: 'O', why: '고령인구 비율에 따라 고령화사회 → 고령사회 → 초고령사회 순으로 기준이 높아진다.' },
+  ];
+
+  const $ = (s, el = document) => el.querySelector(s);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const score = { mcq: new Set(), ox: new Set(), essay: new Set() };
+  function updateScore() {
+    $('#s-mcq').textContent = score.mcq.size;
+    $('#s-ox').textContent = score.ox.size;
+    $('#s-essay').textContent = score.essay.size;
+  }
+
+  function head(card, n, item, extraTag) {
+    const top = el('div', 'q-top');
+    top.append(el('span', 'num', String(n)), el('p', 'q-text', item.q));
+    const tags = el('div', 'tags');
+    tags.append(el('span', 'tag', item.ch));
+    if (extraTag) tags.append(el('span', 'tag warn', extraTag));
+    card.append(top, tags);
+  }
+
+  // ---------- 서술형 ----------
+  ESSAYS.forEach((item, i) => {
+    const card = el('article', 'card');
+    head(card, i + 1, item, item.note ? '원문 대조 필요' : null);
+    const id = `essay-${i}`;
+    const label = el('label', 'hint', '내 답안'); label.htmlFor = id;
+    const ta = el('textarea'); ta.id = id; ta.rows = 5; ta.placeholder = '정의 → 이유(취지) → 의의·효과 순서로 써 보세요';
+    const actions = el('div', 'actions');
+    const btn = el('button', 'btn', '모범답안 보기'); btn.type = 'button';
+    actions.append(btn);
+    const ans = el('div', 'answer'); ans.hidden = true;
+    btn.addEventListener('click', () => {
+      // 정답은 이 시점에 처음 그린다.
+      if (!ans.childElementCount) {
+        const ol = el('ol', 'model');
+        ['정의', '이유·취지', '의의·효과'].forEach((step, k) => {
+          const li = el('li'); li.append(el('span', 'step', step), el('span', null, item.model[k])); ol.append(li);
+        });
+        const keys = el('div', 'keys');
+        item.check.forEach((k) => keys.append(el('span', null, k)));
+        ans.append(el('p', 'verdict', '모범답안'), ol, el('p', 'hint', '내 답안에 들어 있는지 확인할 핵심어'), keys);
+        if (item.note) ans.append(el('p', 'note', item.note));
+      }
+      ans.hidden = !ans.hidden;
+      btn.textContent = ans.hidden ? '모범답안 보기' : '모범답안 접기';
+      score.essay.add(i); updateScore();
+    });
+    card.append(label, ta, actions, ans);
+    $('#essay-list').append(card);
+  });
+
+  // ---------- 사지선다 ----------
+  const MARK = ['①', '②', '③', '④'];
+  MCQ.forEach((item, i) => {
+    const card = el('article', 'card');
+    head(card, i + 1, item);
+    const fs = el('fieldset', 'choices');
+    const lg = el('legend', 'sr-only'); lg.textContent = `${i + 1}번 보기`; lg.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)';
+    fs.append(lg);
+    item.o.forEach((text, k) => {
+      const lab = el('label', 'choice');
+      const r = el('input'); r.type = 'radio'; r.name = `mcq-${i}`; r.value = k; r.id = `mcq-${i}-${k}`;
+      lab.append(r, el('span', null, `${MARK[k]} ${text}`));
+      fs.append(lab);
+    });
+    const actions = el('div', 'actions');
+    const btn = el('button', 'btn', '정답 확인'); btn.type = 'button';
+    actions.append(btn);
+    const ans = el('div', 'answer'); ans.hidden = true;
+    btn.addEventListener('click', () => {
+      const picked = fs.querySelector('input:checked');
+      if (!picked) { btn.textContent = '보기를 먼저 고르세요'; setTimeout(() => (btn.textContent = '정답 확인'), 1400); return; }
+      const ok = Number(picked.value) === item.a;
+      fs.querySelectorAll('.choice').forEach((c, k) => {
+        c.classList.toggle('right', k === item.a);
+        c.classList.toggle('wrong', k === Number(picked.value) && !ok);
+        c.querySelector('input').disabled = true;
+      });
+      ans.replaceChildren(el('p', `verdict ${ok ? 'ok' : 'bad'}`, ok ? `맞았어요 · 정답 ${MARK[item.a]}` : `틀렸어요 · 정답 ${MARK[item.a]}`), el('p', 'why', item.why));
+      ans.hidden = false; btn.disabled = true;
+      if (ok) score.mcq.add(i); updateScore();
+    });
+    card.append(fs, actions, ans);
+    $('#mcq-list').append(card);
+  });
+
+  // ---------- OX ----------
+  OX.forEach((item, i) => {
+    const card = el('article', 'card');
+    head(card, i + 1, item);
+    const box = el('div', 'ox'); box.setAttribute('role', 'radiogroup'); box.setAttribute('aria-label', `${i + 1}번 O 또는 X`);
+    ['O', 'X'].forEach((v) => {
+      const lab = el('label');
+      const r = el('input'); r.type = 'radio'; r.name = `ox-${i}`; r.value = v; r.id = `ox-${i}-${v}`;
+      lab.append(r, el('span', null, v)); box.append(lab);
+    });
+    const actions = el('div', 'actions');
+    const btn = el('button', 'btn', '정답 확인'); btn.type = 'button';
+    actions.append(btn);
+    const ans = el('div', 'answer'); ans.hidden = true;
+    btn.addEventListener('click', () => {
+      const picked = box.querySelector('input:checked');
+      if (!picked) { btn.textContent = 'O 또는 X를 먼저 고르세요'; setTimeout(() => (btn.textContent = '정답 확인'), 1400); return; }
+      const ok = picked.value === item.a;
+      box.querySelectorAll('input').forEach((r) => (r.disabled = true));
+      const nodes = [el('p', `verdict ${ok ? 'ok' : 'bad'}`, ok ? `맞았어요 · 정답 ${item.a}` : `틀렸어요 · 정답 ${item.a}`)];
+      if (item.why) nodes.push(el('p', 'why', item.why));
+      ans.replaceChildren(...nodes);
+      ans.hidden = false; btn.disabled = true;
+      if (ok) score.ox.add(i); updateScore();
+    });
+    card.append(box, actions, ans);
+    $('#ox-list').append(card);
+  });
+
+  $('#btn-reset').addEventListener('click', () => location.reload());
+})();
+</script>
