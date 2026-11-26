@@ -353,3 +353,7 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* 기말 대비 앱(final/) 바로가기 */
+.final-link { display: block; margin-top: 16px; padding: 16px 18px; border: 1px solid var(--line, #d6dad8); border-radius: 12px; color: inherit; font-weight: 600; text-decoration: none; }
+.final-link:hover { border-color: currentColor; }

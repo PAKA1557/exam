@@ -1,6 +1,6 @@
 // 오프라인 캐시. 앱 파일을 설치 시점에 받아 두고, 인터넷이 없어도 문제를 풀 수 있게 한다.
 // 앱 파일을 바꾸면 VERSION 을 올려야 휴대폰에 새 버전이 내려간다.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `exam-quiz-${VERSION}`;
 const APP_FILES = [
   './',
@@ -14,6 +14,12 @@ const APP_FILES = [
   'data/economics.js',
   'econ.js',
   'adaptive.js',
+  'final/',
+  'final/index.html',
+  'final/style.css',
+  'final/questions.js',
+  'final/engine.js',
+  'final/app.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-180.png',
@@ -34,7 +40,7 @@ self.addEventListener('activate', (e) => {
 });
 
 // 앱 파일: 네트워크를 먼저 시도해 최신 문제를 받고, 실패하면 캐시로 연다.
-// 글꼴(Google Fonts): 한 번 받은 것은 캐시에서 쓴다.
+// 글꼴(Google Fonts, 기말 앱의 Pretendard): 한 번 받은 것은 캐시에서 쓴다.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -52,7 +58,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {
         caches.open(CACHE).then((c) => c.put(req, res.clone()));
